@@ -1,31 +1,35 @@
-import XCTest
+import Testing
 @testable import Sage
 
-final class SkillGoalTests: XCTestCase {
+@Suite("SkillGoal Tests")
+struct SkillGoalTests {
 
     // MARK: - Initialization
 
-    func testInit_defaultValues() {
+    @Test("Default values are correct on init")
+    func defaultValues() {
         let goal = SkillGoal(skillName: "Cooking")
 
-        XCTAssertNil(goal.id)
-        XCTAssertEqual(goal.skillName, "Cooking")
-        XCTAssertNil(goal.skillDescription)
-        XCTAssertNil(goal.skillCategory)
-        XCTAssertNil(goal.currentLevel)
-        XCTAssertNil(goal.targetLevel)
-        XCTAssertTrue(goal.customMetrics.isEmpty)
+        #expect(goal.id == nil)
+        #expect(goal.skillName == "Cooking")
+        #expect(goal.skillDescription == nil)
+        #expect(goal.skillCategory == nil)
+        #expect(goal.currentLevel == nil)
+        #expect(goal.targetLevel == nil)
+        #expect(goal.customMetrics.isEmpty)
     }
 
     // MARK: - JSON serialization of customMetrics
 
-    func testCustomMetricsJSON_emptyArray() throws {
+    @Test("customMetricsJSON returns empty array for empty metrics")
+    func customMetricsJSON_emptyArray() throws {
         let goal = SkillGoal(skillName: "Empty")
         let json = try goal.customMetricsJSON()
-        XCTAssertEqual(json, "[]")
+        #expect(json == "[]")
     }
 
-    func testCustomMetricsJSON_roundTrip() throws {
+    @Test("customMetricsJSON round-trips a single metric correctly")
+    func customMetricsJSON_roundTrip() throws {
         let metric = CustomMetric(
             id: "test-id",
             name: "Words per minute",
@@ -39,16 +43,17 @@ final class SkillGoalTests: XCTestCase {
         let json = try goal.customMetricsJSON()
         let decoded = try SkillGoal.decodeMetrics(from: json)
 
-        XCTAssertEqual(decoded.count, 1)
-        XCTAssertEqual(decoded.first?.id, "test-id")
-        XCTAssertEqual(decoded.first?.name, "Words per minute")
-        XCTAssertEqual(decoded.first?.unit, "wpm")
-        XCTAssertEqual(decoded.first?.targetValue, 80)
-        XCTAssertEqual(decoded.first?.currentValue, 60)
-        XCTAssertTrue(decoded.first?.isHigherBetter ?? false)
+        #expect(decoded.count == 1)
+        #expect(decoded.first?.id == "test-id")
+        #expect(decoded.first?.name == "Words per minute")
+        #expect(decoded.first?.unit == "wpm")
+        #expect(decoded.first?.targetValue == 80)
+        #expect(decoded.first?.currentValue == 60)
+        #expect(decoded.first?.isHigherBetter == true)
     }
 
-    func testCustomMetricsJSON_multipleMetrics() throws {
+    @Test("customMetricsJSON round-trips multiple metrics correctly")
+    func customMetricsJSON_multipleMetrics() throws {
         let metrics = [
             CustomMetric(name: "Speed", unit: "mph", targetValue: 30),
             CustomMetric(name: "Distance", unit: "miles", targetValue: 10),
@@ -58,37 +63,43 @@ final class SkillGoalTests: XCTestCase {
         let json = try goal.customMetricsJSON()
         let decoded = try SkillGoal.decodeMetrics(from: json)
 
-        XCTAssertEqual(decoded.count, 2)
-        XCTAssertEqual(decoded[0].name, "Speed")
-        XCTAssertEqual(decoded[1].name, "Distance")
+        #expect(decoded.count == 2)
+        #expect(decoded[0].name == "Speed")
+        #expect(decoded[1].name == "Distance")
     }
 
-    func testDecodeMetrics_invalidJSON_throws() {
-        XCTAssertThrowsError(try SkillGoal.decodeMetrics(from: "not json"))
+    @Test("decodeMetrics throws on invalid JSON")
+    func decodeMetrics_invalidJSON_throws() {
+        #expect(throws: (any Error).self) {
+            try SkillGoal.decodeMetrics(from: "not json")
+        }
     }
 
     // MARK: - CustomMetric
 
-    func testCustomMetric_defaultID_isUnique() {
+    @Test("Default IDs for two CustomMetrics are unique")
+    func customMetric_defaultID_isUnique() {
         let a = CustomMetric(name: "A", unit: "u")
         let b = CustomMetric(name: "B", unit: "u")
-        XCTAssertNotEqual(a.id, b.id)
+        #expect(a.id != b.id)
     }
 
-    func testCustomMetric_optionalValues_nilByDefault() {
+    @Test("Optional CustomMetric values are nil by default")
+    func customMetric_optionalValues_nilByDefault() {
         let metric = CustomMetric(name: "Reps", unit: "count")
-        XCTAssertNil(metric.targetValue)
-        XCTAssertNil(metric.currentValue)
+        #expect(metric.targetValue == nil)
+        #expect(metric.currentValue == nil)
     }
 
     // MARK: - Equatable
 
-    func testSkillGoal_equatable() {
+    @Test("SkillGoal equatability reflects value changes")
+    func skillGoal_equatable() {
         let a = SkillGoal(skillName: "Swimming")
         var b = a
-        XCTAssertEqual(a, b)
+        #expect(a == b)
 
         b.skillName = "Running"
-        XCTAssertNotEqual(a, b)
+        #expect(a != b)
     }
 }

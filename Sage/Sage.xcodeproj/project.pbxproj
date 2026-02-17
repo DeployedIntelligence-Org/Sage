@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		31BB9FC12F4513510074C65F /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 31BB9FC02F4513510074C65F /* libsqlite3.tbd */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		31BB9F962F4513540074C65F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,10 +31,12 @@
 		31BB9F882F4513510074C65F /* Sage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9F952F4513540074C65F /* SageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9F9F2F4513540074C65F /* SageUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		31BB9FC02F4513510074C65F /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		31BBA1B72F4515EE0074C65F /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		31BB9F8A2F4513510074C65F /* Sage */ = {
+		31BB9F8A2F4513510074C65F /* . */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				31BB9FD02F4513510074C65F /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
@@ -41,29 +47,23 @@
 		31BB9FD02F4513510074C65F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Info.plist,
 				Tests,
+				Sage.xcodeproj,
 			);
 			target = 31BB9F872F4513510074C65F /* Sage */;
 		};
-		31BB9F982F4513540074C65F /* SageTests */ = {
+		31BB9F982F4513540074C65F /* Tests/SageTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Tests/SageTests;
 			sourceTree = "<group>";
 		};
-		31BB9FA22F4513540074C65F /* SageUITests */ = {
+		31BB9FA22F4513540074C65F /* Tests/SageUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Tests/SageUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
-
-/* Begin PBXFileReference section */
-		31BB9FC02F4513510074C65F /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
-/* End PBXFileReference section */
-
-/* Begin PBXBuildFile section */
-		31BB9FC12F4513510074C65F /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 31BB9FC02F4513510074C65F /* libsqlite3.tbd */; };
-/* End PBXBuildFile section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		31BB9F852F4513510074C65F /* Frameworks */ = {
@@ -94,12 +94,22 @@
 		31BB9F7F2F4513510074C65F = {
 			isa = PBXGroup;
 			children = (
-				31BB9F8A2F4513510074C65F /* Sage */,
-				31BB9F982F4513540074C65F /* SageTests */,
-				31BB9FA22F4513540074C65F /* SageUITests */,
+				31BB9F8A2F4513510074C65F /* . */,
+				31BB9F982F4513540074C65F /* Tests/SageTests */,
+				31BB9FA22F4513540074C65F /* Tests/SageUITests */,
 				31BB9F892F4513510074C65F /* Products */,
 				31BB9FC32F4513510074C65F /* Frameworks */,
 			);
+			sourceTree = "<group>";
+		};
+		31BB9F892F4513510074C65F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				31BB9F882F4513510074C65F /* Sage.app */,
+				31BB9F952F4513540074C65F /* SageTests.xctest */,
+				31BB9F9F2F4513540074C65F /* SageUITests.xctest */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 		31BB9FC32F4513510074C65F /* Frameworks */ = {
@@ -110,13 +120,8 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		31BB9F892F4513510074C65F /* Products */ = {
+		31BBA1B92F4515EE0074C65F /* Products */ = {
 			isa = PBXGroup;
-			children = (
-				31BB9F882F4513510074C65F /* Sage.app */,
-				31BB9F952F4513540074C65F /* SageTests.xctest */,
-				31BB9F9F2F4513540074C65F /* SageUITests.xctest */,
-			);
 			name = Products;
 			sourceTree = "<group>";
 		};
@@ -136,7 +141,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				31BB9F8A2F4513510074C65F /* Sage */,
+				31BB9F8A2F4513510074C65F /* . */,
 			);
 			name = Sage;
 			packageProductDependencies = (
@@ -159,7 +164,7 @@
 				31BB9F972F4513540074C65F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				31BB9F982F4513540074C65F /* SageTests */,
+				31BB9F982F4513540074C65F /* Tests/SageTests */,
 			);
 			name = SageTests;
 			packageProductDependencies = (
@@ -182,7 +187,7 @@
 				31BB9FA12F4513540074C65F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				31BB9FA22F4513540074C65F /* SageUITests */,
+				31BB9FA22F4513540074C65F /* Tests/SageUITests */,
 			);
 			name = SageUITests;
 			packageProductDependencies = (
@@ -226,6 +231,12 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 31BB9F892F4513510074C65F /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 31BBA1B92F4515EE0074C65F /* Products */;
+					ProjectRef = 31BBA1B72F4515EE0074C65F /* Sage.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				31BB9F872F4513510074C65F /* Sage */,
