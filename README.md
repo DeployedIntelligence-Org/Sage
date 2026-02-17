@@ -8,14 +8,14 @@
 
 ## 🎯 What is Sage?
 
-Sage is a Progressive Web App (PWA) that combines:
+Sage is a native iOS app that combines:
 - **LLM-Powered Onboarding**: Define any skill you want to learn, and Sage helps you set measurable goals
 - **Dynamic Practice Tracking**: Custom metrics that adapt to your specific skill
 - **AI Coaching**: Personalized guidance from Claude, tailored to your skill and progress
 - **Smart Resource Curation**: Automated discovery of learning materials using web search + AI
-- **Progress Analytics**: Charts, streaks, and insights to keep you motivated
-- **Google Calendar Integration**: Auto-schedule practice sessions based on your availability
-- **Community Features**: Discover what others are learning and find practice partners
+- **Progress Insights**: Weekly summaries, pattern detection, and AI recommendations
+- **Calendar Integration**: Schedule practice sessions based on your availability
+- **LLMOps Dashboard**: Debug tools for prompt versioning, A/B testing, and evaluation
 
 ---
 
@@ -25,7 +25,7 @@ This project is being built in public! Follow along on the **[Deployed Intellige
 
 ### What You'll See on the Channel:
 - 🎥 Weekly development vlogs
-- 💡 Technical deep-dives on GCP, Next.js, and Claude API
+- 💡 Technical deep-dives on SwiftUI, SQLite, and Claude API
 - 🐛 Real debugging sessions and problem-solving
 - 📊 Progress updates and milestone celebrations
 - 🧠 Lessons learned from building with AI
@@ -36,37 +36,20 @@ This project is being built in public! Follow along on the **[Deployed Intellige
 
 ## 🛠️ Tech Stack
 
-### Frontend
-- **Framework**: Next.js 14 (App Router)
-- **UI Library**: React 18 with TypeScript
-- **Styling**: Tailwind CSS + shadcn/ui components
-- **State Management**: React Context + Hooks
-- **Charts**: Recharts
-- **PWA**: next-pwa with offline sync (Dexie.js)
-
-### Backend
-- **API**: FastAPI
-- **Database**: PostgreSQL (Cloud SQL) with pgvector for semantic search
-- **Auth**: Firebase Authentication
-- **Storage**: Cloud Storage + Firestore
-- **Cache**: Memorystore (Redis)
-- **Background Jobs**: Cloud Functions + Cloud Tasks
+### iOS App
+- **UI**: SwiftUI
+- **Language**: Swift
+- **Database**: SQLite (local, on-device)
+- **Secure Storage**: Keychain Services
+- **Calendar**: EventKit
+- **Notifications**: Local Notifications
+- **Background Tasks**: BGTaskScheduler
 
 ### AI & Integrations
 - **LLM**: Claude (Anthropic API)
-- **MCP Server**: Custom tool server for resource search
-- **Web Search**: Integrated via Claude's tools
-- **Calendar**: Google Calendar API
-- **Email**: SendGrid
-- **Notifications**: Firebase Cloud Messaging
-
-### Infrastructure (GCP)
-- **Compute**: Cloud Run (containerized)
-- **CI/CD**: Cloud Build
-- **CDN**: Cloud CDN
-- **Security**: Cloud Armor (DDoS protection, rate limiting)
-- **Monitoring**: Cloud Monitoring + Cloud Logging + Error Reporting
-- **IaC**: Terraform
+- **Tool Calling**: MCP-style tools (resource search, web search)
+- **Agents**: Resource curation, progress analysis, orchestrator
+- **LLMOps**: Prompt versioning, A/B testing, evaluation framework, response caching
 
 ---
 
@@ -85,8 +68,9 @@ Ways to contribute:
 ## 📺 Follow the Journey
 
 Building Sage is a journey of learning:
-- **GCP infrastructure** - from basics to production-grade
-- **AI integration** - Claude, MCP, LangGraph workflows
+- **iOS development** - SwiftUI, local storage, native APIs
+- **AI integration** - Claude API, tool calling, agentic workflows
+- **LLMOps** - prompt engineering, evaluation, A/B testing
 - **Product development** - from idea to shipped feature
 - **Solo founder challenges** - time management, decision-making
 
@@ -97,7 +81,7 @@ Join me on **[Deployed Intelligence](https://www.youtube.com/@Deployed.Intellige
 ## 🙏 Acknowledgments
 
 - **Anthropic** - for Claude and the incredible developer experience
-- **Google Cloud** - for the robust infrastructure platform
+- **Apple** - for SwiftUI and the iOS platform
 - **Everyone watching on YouTube** - your support keeps me going!
 
 ---
