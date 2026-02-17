@@ -33,9 +33,17 @@
 		31BB9F8A2F4513510074C65F /* Sage */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				31BB9FD02F4513510074C65F /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 			);
-			path = Sage;
+			path = .;
 			sourceTree = "<group>";
+		};
+		31BB9FD02F4513510074C65F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Tests,
+			);
+			target = 31BB9F872F4513510074C65F /* Sage */;
 		};
 		31BB9F982F4513540074C65F /* SageTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -416,6 +424,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
