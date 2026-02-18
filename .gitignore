@@ -1,3 +1,37 @@
+# ============================================================
+# iOS / Xcode
+# ============================================================
+
+# Local developer config — contains secrets, never commit
+LocalConfig.xcconfig
+
+# Xcode build artefacts
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# CocoaPods (if added later)
+Pods/
+Podfile.lock
+
+# Swift Package Manager resolved file (optional — remove if you want to pin)
+# .package.resolved
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ============================================================
+# Python (pre-existing)
+# ============================================================
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

@@ -15,6 +15,7 @@ struct MetricSelectionView: View {
         VStack(alignment: .leading, spacing: 28) {
             heading
             addMetricForm
+            suggestionsSection
             metricList
         }
     }
@@ -98,6 +99,65 @@ struct MetricSelectionView: View {
             Toggle("", isOn: $vm.newMetricIsHigherBetter)
                 .labelsHidden()
                 .tint(.green)
+        }
+    }
+
+    // MARK: - AI Suggestions
+
+    @ViewBuilder
+    private var suggestionsSection: some View {
+        if vm.isFetchingSuggestions {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Getting suggestions from Sage…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        } else if let error = vm.suggestionError {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Retry") { vm.fetchSuggestions() }
+                    .font(.caption)
+            }
+        } else if !vm.suggestedMetrics.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Suggested by Sage", systemImage: "sparkles")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+
+                VStack(spacing: 6) {
+                    ForEach(vm.suggestedMetrics) { suggestion in
+                        let alreadyAdded = vm.metrics.contains(where: { $0.name == suggestion.name })
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(suggestion.name)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text(suggestion.unit)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(action: { vm.acceptSuggestion(suggestion) }) {
+                                Image(systemName: alreadyAdded ? "checkmark.circle.fill" : "plus.circle")
+                                    .foregroundStyle(alreadyAdded ? .green : .accentColor)
+                                    .font(.title3)
+                            }
+                            .disabled(alreadyAdded)
+                        }
+                        .padding(12)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }
         }
     }
 

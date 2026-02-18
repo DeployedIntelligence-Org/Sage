@@ -33,31 +33,34 @@
 		31BB9F9F2F4513540074C65F /* SageUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9FC02F4513510074C65F /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		31BBA1B72F4515EE0074C65F /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
+		31BBAA182F4565E00074C65F /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		31BB9F8A2F4513510074C65F /* Sage */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				31BB9FD02F4513510074C65F /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
-			);
-			path = Sage;
-			sourceTree = "<group>";
-		};
-		31BB9FD02F4513510074C65F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		31BB9FD02F4513510074C65F /* Exceptions for "Sage" folder in "Sage" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 31BB9F872F4513510074C65F /* Sage */;
 		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
-		31BB9F982F4513540074C65F /* SageTests */ = {
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		31BB9F8A2F4513510074C65F /* Sage */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				31BB9FD02F4513510074C65F /* Exceptions for "Sage" folder in "Sage" target */,
+			);
+			path = Sage;
+			sourceTree = "<group>";
+		};
+		31BB9F982F4513540074C65F /* Tests/SageTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Tests/SageTests;
 			sourceTree = "<group>";
 		};
-		31BB9FA22F4513540074C65F /* SageUITests */ = {
+		31BB9FA22F4513540074C65F /* Tests/SageUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Tests/SageUITests;
 			sourceTree = "<group>";
@@ -94,8 +97,8 @@
 			isa = PBXGroup;
 			children = (
 				31BB9F8A2F4513510074C65F /* Sage */,
-				31BB9F982F4513540074C65F /* SageTests */,
-				31BB9FA22F4513540074C65F /* SageUITests */,
+				31BB9F982F4513540074C65F /* Tests/SageTests */,
+				31BB9FA22F4513540074C65F /* Tests/SageUITests */,
 				31BB9F892F4513510074C65F /* Products */,
 				31BB9FC32F4513510074C65F /* Frameworks */,
 			);
@@ -124,6 +127,13 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		31BBAA1A2F4565E00074C65F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -140,7 +150,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				31BB9F8A2F4513510074C65F /* . */,
+				31BB9F8A2F4513510074C65F /* Sage */,
 			);
 			name = Sage;
 			packageProductDependencies = (
@@ -234,6 +244,10 @@
 				{
 					ProductGroup = 31BBA1B92F4515EE0074C65F /* Products */;
 					ProjectRef = 31BBA1B72F4515EE0074C65F /* Sage.xcodeproj */;
+				},
+				{
+					ProductGroup = 31BBAA1A2F4565E00074C65F /* Products */;
+					ProjectRef = 31BBAA182F4565E00074C65F /* Sage.xcodeproj */;
 				},
 			);
 			projectRoot = "";
