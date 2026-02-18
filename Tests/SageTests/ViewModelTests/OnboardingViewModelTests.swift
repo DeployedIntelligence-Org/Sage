@@ -306,9 +306,9 @@ final class OnboardingViewModelTests: XCTestCase {
 
 extension SuggestedMetric {
     /// Constructs a `SuggestedMetric` suitable for use in unit tests.
-    static func stub(name: String, unit: String = "units") -> SuggestedMetric {
+    static func stub(name: String, unit: String = "units", isHigherBetter: Bool = true) -> SuggestedMetric {
         let json = """
-        {"name": "\(name)", "type": "count", "unit": "\(unit)"}
+        {"name": "\(name)", "unit": "\(unit)", "isHigherBetter": \(isHigherBetter)}
         """
         // swiftlint:disable:next force_try
         return try! JSONDecoder().decode(SuggestedMetric.self, from: Data(json.utf8))

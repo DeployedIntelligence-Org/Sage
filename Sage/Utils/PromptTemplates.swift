@@ -19,25 +19,32 @@ enum PromptTemplates {
         User wants to learn: \(skill)
         Current level: \(level)
 
-        Suggest 3-5 measurable metrics they could track. Return JSON format:
+        Suggest 3-5 measurable metrics they could track to measure improvement.
+
+        Return ONLY a JSON object in exactly this format with no extra text:
         {
           "metrics": [
             {
               "name": "Metric name",
-              "type": "count|duration|rating|custom",
-              "unit": "pieces|minutes|rating"
+              "unit": "unit of measurement",
+              "isHigherBetter": true
             }
-          ],
-          "reasoning": "Brief explanation"
+          ]
         }
+
+        Rules:
+        - "name" is a short, human-readable metric name (e.g. "Words per minute")
+        - "unit" is the measurement unit (e.g. "wpm", "minutes", "pages", "%")
+        - "isHigherBetter" is true if a higher value means better performance, false otherwise
+        - Return 3-5 metrics relevant to the skill and level
         """
     }
 
     /// System prompt that constrains Claude to return only valid JSON.
     static let metricSuggestionsSystem = """
         You are a skill-learning coach. \
-        Respond ONLY with valid JSON matching the requested schema. \
-        Do not include any explanation, markdown, or code fences outside the JSON object.
+        Respond ONLY with a valid JSON object. \
+        Do not include any explanation, markdown, code fences, or text outside the JSON object.
         """
 }
 
@@ -46,22 +53,17 @@ enum PromptTemplates {
 /// The decoded shape of Claude's metric-suggestion response.
 struct MetricSuggestionResponse: Decodable {
     let metrics: [SuggestedMetric]
-    let reasoning: String
 }
 
 struct SuggestedMetric: Decodable, Identifiable {
     let name: String
-    let type: MetricType
     let unit: String
+    let isHigherBetter: Bool
 
     var id: String { name }
 
-    enum MetricType: String, Decodable {
-        case count, duration, rating, custom
-    }
-
     /// Converts a `SuggestedMetric` into the app's `CustomMetric` model.
     func toCustomMetric() -> CustomMetric {
-        CustomMetric(name: name, unit: unit)
+        CustomMetric(name: name, unit: unit, isHigherBetter: isHigherBetter)
     }
 }

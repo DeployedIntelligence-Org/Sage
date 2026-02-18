@@ -17,8 +17,9 @@ final class PromptTemplatesTests: XCTestCase {
 
     func testMetricSuggestions_containsJSONSchema() {
         let prompt = PromptTemplates.metricSuggestions(skill: "X", level: "Y")
-        XCTAssertTrue(prompt.contains("\"metrics\""), "Prompt should include JSON schema hint")
-        XCTAssertTrue(prompt.contains("\"reasoning\""), "Prompt should include reasoning key")
+        XCTAssertTrue(prompt.contains("\"metrics\""), "Prompt should include metrics key")
+        XCTAssertTrue(prompt.contains("\"isHigherBetter\""), "Prompt should include isHigherBetter key")
+        XCTAssertTrue(prompt.contains("\"unit\""), "Prompt should include unit key")
     }
 
     // MARK: - System Prompt
@@ -34,10 +35,9 @@ final class PromptTemplatesTests: XCTestCase {
         let json = """
         {
           "metrics": [
-            {"name": "Words per minute", "type": "count", "unit": "wpm"},
-            {"name": "Practice time", "type": "duration", "unit": "minutes"}
-          ],
-          "reasoning": "These capture speed and consistency."
+            {"name": "Words per minute", "unit": "wpm", "isHigherBetter": true},
+            {"name": "Error rate", "unit": "%", "isHigherBetter": false}
+          ]
         }
         """
         let data = try XCTUnwrap(json.data(using: .utf8))
@@ -45,28 +45,47 @@ final class PromptTemplatesTests: XCTestCase {
 
         XCTAssertEqual(result.metrics.count, 2)
         XCTAssertEqual(result.metrics[0].name, "Words per minute")
-        XCTAssertEqual(result.metrics[0].type, .count)
-        XCTAssertEqual(result.metrics[1].unit, "minutes")
-        XCTAssertFalse(result.reasoning.isEmpty)
+        XCTAssertEqual(result.metrics[0].unit, "wpm")
+        XCTAssertTrue(result.metrics[0].isHigherBetter)
+        XCTAssertFalse(result.metrics[1].isHigherBetter)
     }
 
-    func testDecode_unknownMetricType_throws() throws {
+    func testDecode_missingMetricsKey_throws() throws {
         let json = """
-        {
-          "metrics": [{"name": "Foo", "type": "something_new", "unit": "units"}],
-          "reasoning": "Test"
-        }
+        {"something_else": "value"}
         """
         let data = try XCTUnwrap(json.data(using: .utf8))
         XCTAssertThrowsError(try JSONDecoder().decode(MetricSuggestionResponse.self, from: data))
     }
 
+    func testDecode_extraFields_succeeds() throws {
+        // Claude may include extra fields — decoder should be lenient
+        let json = """
+        {
+          "metrics": [
+            {"name": "Accuracy", "unit": "%", "isHigherBetter": true, "reasoning": "extra field"}
+          ],
+          "someUnexpectedTopLevelKey": "value"
+        }
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let result = try JSONDecoder().decode(MetricSuggestionResponse.self, from: data)
+        XCTAssertEqual(result.metrics.count, 1)
+    }
+
     // MARK: - SuggestedMetric -> CustomMetric conversion
 
-    func testToCustomMetric_mapsNameAndUnit() {
-        let suggestion = SuggestedMetric(name: "Accuracy", type: .rating, unit: "%")
+    func testToCustomMetric_mapsNameUnitAndDirection() {
+        let suggestion = SuggestedMetric.stub(name: "Accuracy", unit: "%", isHigherBetter: true)
         let metric = suggestion.toCustomMetric()
         XCTAssertEqual(metric.name, "Accuracy")
         XCTAssertEqual(metric.unit, "%")
+        XCTAssertTrue(metric.isHigherBetter)
+    }
+
+    func testToCustomMetric_lowerIsBetter() {
+        let suggestion = SuggestedMetric.stub(name: "Error rate", unit: "%", isHigherBetter: false)
+        let metric = suggestion.toCustomMetric()
+        XCTAssertFalse(metric.isHigherBetter)
     }
 }
