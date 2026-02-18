@@ -1,8 +1,10 @@
 import SwiftUI
 
 /// Shown after the user completes all onboarding steps.
-/// Will transition to the main app experience in a future sprint.
+/// Calls `onComplete` when the user taps "Let's go" to transition to the main app.
 struct OnboardingCompletionView: View {
+
+    var onComplete: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 32) {
@@ -26,8 +28,7 @@ struct OnboardingCompletionView: View {
 
             Spacer()
 
-            // Placeholder CTA — navigation to main app wired in a future sprint.
-            Button(action: {}) {
+            Button(action: { onComplete?() }) {
                 Text("Let's go")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.white)

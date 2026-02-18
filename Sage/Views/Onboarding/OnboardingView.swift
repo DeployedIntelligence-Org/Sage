@@ -4,12 +4,14 @@ import SwiftUI
 /// Hosts a progress bar and drives step transitions via OnboardingViewModel.
 struct OnboardingView: View {
 
+    var onComplete: (() -> Void)?
+
     @StateObject private var vm = OnboardingViewModel()
 
     var body: some View {
         ZStack {
             if vm.isComplete {
-                OnboardingCompletionView()
+                OnboardingCompletionView(onComplete: onComplete)
                     .transition(.opacity)
             } else {
                 formFlow

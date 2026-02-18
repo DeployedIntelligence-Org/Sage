@@ -1,28 +1,37 @@
 import SwiftUI
 
-/// Root view — presents the onboarding flow for now.
-/// Will be replaced with tab bar navigation once onboarding is complete.
+/// Root view — shows onboarding for new users, then transitions to the main tab experience.
 struct ContentView: View {
 
+    @State private var onboardingComplete: Bool = false
     @State private var showSettings = false
 
     var body: some View {
-        NavigationStack {
-            OnboardingView()
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                                .accessibilityLabel("Settings")
+        ZStack {
+            if onboardingComplete {
+                HomeView()
+                    .transition(.opacity)
+            } else {
+                NavigationStack {
+                    OnboardingView(onComplete: { onboardingComplete = true })
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    showSettings = true
+                                } label: {
+                                    Image(systemName: "gearshape")
+                                        .accessibilityLabel("Settings")
+                                }
+                            }
                         }
-                    }
                 }
+                .sheet(isPresented: $showSettings) {
+                    SettingsView()
+                }
+                .transition(.opacity)
+            }
         }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
-        }
+        .animation(.easeInOut(duration: 0.35), value: onboardingComplete)
     }
 }
 

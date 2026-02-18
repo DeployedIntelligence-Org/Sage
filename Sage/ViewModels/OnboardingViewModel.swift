@@ -39,7 +39,10 @@ final class OnboardingViewModel: ObservableObject {
     @Published var targetLevel: String = ""
 
     // Step 3 — Metric Selection
+    /// Metrics the user added manually.
     @Published var metrics: [CustomMetric] = []
+    /// IDs (`name`) of AI-suggested metrics the user has checked.
+    @Published var selectedMetrics: Set<String> = []
 
     // Transient metric builder
     @Published var newMetricName: String = ""
@@ -76,11 +79,13 @@ final class OnboardingViewModel: ObservableObject {
     // MARK: - Dependencies
 
     private let claudeService: ClaudeService
+    private let databaseService: DatabaseService
 
     // MARK: - Init
 
-    init(claudeService: ClaudeService = .shared) {
+    init(claudeService: ClaudeService = .shared, databaseService: DatabaseService = .shared) {
         self.claudeService = claudeService
+        self.databaseService = databaseService
     }
 
     // MARK: - Navigation
@@ -112,6 +117,7 @@ final class OnboardingViewModel: ObservableObject {
         isFetchingSuggestions = true
         suggestionError = nil
         suggestedMetrics = []
+        selectedMetrics = []
 
         Task {
             do {
@@ -123,6 +129,8 @@ final class OnboardingViewModel: ObservableObject {
                 )
                 let parsed = try parseSuggestions(from: response.text)
                 suggestedMetrics = parsed.metrics
+                // Pre-select all suggestions so the user can deselect what they don't want.
+                selectedMetrics = Set(parsed.metrics.map { $0.id })
             } catch let error as NetworkError {
                 suggestionError = error.localizedDescription
             } catch {
@@ -132,11 +140,17 @@ final class OnboardingViewModel: ObservableObject {
         }
     }
 
-    /// Adds a suggested metric to the user's confirmed metric list.
-    func acceptSuggestion(_ suggestion: SuggestedMetric) {
-        let metric = suggestion.toCustomMetric()
-        guard !metrics.contains(where: { $0.name == metric.name }) else { return }
-        metrics.append(metric)
+    /// Toggles the checked state for a suggested metric.
+    func toggleSuggestion(_ suggestion: SuggestedMetric) {
+        if selectedMetrics.contains(suggestion.id) {
+            selectedMetrics.remove(suggestion.id)
+        } else {
+            selectedMetrics.insert(suggestion.id)
+        }
+    }
+
+    func isSelected(_ suggestion: SuggestedMetric) -> Bool {
+        selectedMetrics.contains(suggestion.id)
     }
 
     private func parseSuggestions(from text: String) throws -> MetricSuggestionResponse {
@@ -173,15 +187,31 @@ final class OnboardingViewModel: ObservableObject {
         newMetricIsHigherBetter = true
     }
 
-    // MARK: - Finish
+    // MARK: - Save & Finish
 
-    private func finish() {
-        let goal = buildSkillGoal()
-        save(goal)
-        isComplete = true
+    /// Builds the SkillGoal combining checked suggestions and manually-added metrics,
+    /// persists it to SQLite, and sets `isComplete`.
+    /// - Returns: `true` if the save succeeded.
+    @discardableResult
+    func saveSkillGoal() -> Bool {
+        let selectedFromSuggestions = suggestedMetrics
+            .filter { selectedMetrics.contains($0.id) }
+            .map { $0.toCustomMetric() }
+
+        let allMetrics = selectedFromSuggestions + metrics
+
+        var goal = buildSkillGoal(with: allMetrics)
+        do {
+            goal = try databaseService.insert(goal)
+            isComplete = true
+            return true
+        } catch {
+            print("[OnboardingViewModel] Failed to save goal: \(error.localizedDescription)")
+            return false
+        }
     }
 
-    func buildSkillGoal() -> SkillGoal {
+    func buildSkillGoal(with customMetrics: [CustomMetric] = []) -> SkillGoal {
         SkillGoal(
             skillName: skillName.trimmingCharacters(in: .whitespaces),
             skillDescription: skillDescription.trimmingCharacters(in: .whitespaces).isEmpty
@@ -192,16 +222,11 @@ final class OnboardingViewModel: ObservableObject {
                 : skillCategory.trimmingCharacters(in: .whitespaces),
             currentLevel: currentLevel.isEmpty ? nil : currentLevel,
             targetLevel: targetLevel.isEmpty ? nil : targetLevel,
-            customMetrics: metrics
+            customMetrics: customMetrics
         )
     }
 
-    private func save(_ goal: SkillGoal) {
-        do {
-            _ = try DatabaseService.shared.insert(goal)
-        } catch {
-            // Surface to error state in a future sprint.
-            print("[OnboardingViewModel] Failed to save goal: \(error.localizedDescription)")
-        }
+    private func finish() {
+        saveSkillGoal()
     }
 }

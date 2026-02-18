@@ -34,6 +34,7 @@
 		31BB9FC02F4513510074C65F /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		31BBA1B72F4515EE0074C65F /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
 		31BBA5B42F451AEE0074C65F /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
+		31BBAD2B2F4570C70074C65F /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -128,6 +129,11 @@
 			sourceTree = "<group>";
 		};
 		31BBA5B52F451AEE0074C65F /* Products */ = {
+			isa = PBXGroup;
+			name = Products;
+			sourceTree = "<group>";
+		};
+		31BBAD2D2F4570C70074C65F /* Products */ = {
 			isa = PBXGroup;
 			name = Products;
 			sourceTree = "<group>";
@@ -239,6 +245,10 @@
 			productRefGroup = 31BB9F892F4513510074C65F /* Products */;
 			projectDirPath = "";
 			projectReferences = (
+				{
+					ProductGroup = 31BBAD2D2F4570C70074C65F /* Products */;
+					ProjectRef = 31BBAD2B2F4570C70074C65F /* Sage.xcodeproj */;
+				},
 				{
 					ProductGroup = 31BBA1B92F4515EE0074C65F /* Products */;
 					ProjectRef = 31BBA1B72F4515EE0074C65F /* Sage.xcodeproj */;
