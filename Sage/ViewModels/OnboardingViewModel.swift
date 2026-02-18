@@ -46,6 +46,11 @@ final class OnboardingViewModel: ObservableObject {
     @Published var newMetricUnit: String = ""
     @Published var newMetricIsHigherBetter: Bool = true
 
+    // AI metric suggestions
+    @Published var isFetchingSuggestions: Bool = false
+    @Published var suggestionError: String? = nil
+    @Published var suggestedMetrics: [SuggestedMetric] = []
+
     // MARK: - Computed
 
     var progress: Double {
@@ -68,12 +73,25 @@ final class OnboardingViewModel: ObservableObject {
         !newMetricUnit.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    // MARK: - Dependencies
+
+    private let claudeService: ClaudeService
+
+    // MARK: - Init
+
+    init(claudeService: ClaudeService = .shared) {
+        self.claudeService = claudeService
+    }
+
     // MARK: - Navigation
 
     func advance() {
         guard isCurrentStepValid else { return }
         if let next = currentStep.next {
             currentStep = next
+            if next == .metricSelection {
+                fetchSuggestions()
+            }
         } else {
             finish()
         }
@@ -82,6 +100,53 @@ final class OnboardingViewModel: ObservableObject {
     func goBack() {
         if let previous = currentStep.previous {
             currentStep = previous
+        }
+    }
+
+    // MARK: - AI Metric Suggestions
+
+    func fetchSuggestions() {
+        guard !skillName.isEmpty else { return }
+        let level = currentLevel.isEmpty ? "Beginner" : currentLevel
+
+        isFetchingSuggestions = true
+        suggestionError = nil
+        suggestedMetrics = []
+
+        Task {
+            do {
+                let prompt = PromptTemplates.metricSuggestions(skill: skillName, level: level)
+                let response = try await claudeService.send(
+                    userMessage: prompt,
+                    systemPrompt: PromptTemplates.metricSuggestionsSystem,
+                    maxTokens: Config.Claude.metricSuggestionMaxTokens
+                )
+                let parsed = try parseSuggestions(from: response.text)
+                suggestedMetrics = parsed.metrics
+            } catch let error as NetworkError {
+                suggestionError = error.localizedDescription
+            } catch {
+                suggestionError = error.localizedDescription
+            }
+            isFetchingSuggestions = false
+        }
+    }
+
+    /// Adds a suggested metric to the user's confirmed metric list.
+    func acceptSuggestion(_ suggestion: SuggestedMetric) {
+        let metric = suggestion.toCustomMetric()
+        guard !metrics.contains(where: { $0.name == metric.name }) else { return }
+        metrics.append(metric)
+    }
+
+    private func parseSuggestions(from text: String) throws -> MetricSuggestionResponse {
+        guard let data = text.data(using: .utf8) else {
+            throw NetworkError.decodingFailed("Response text is not valid UTF-8")
+        }
+        do {
+            return try JSONDecoder().decode(MetricSuggestionResponse.self, from: data)
+        } catch {
+            throw NetworkError.decodingFailed("Could not parse metric suggestions: \(error.localizedDescription)")
         }
     }
 
