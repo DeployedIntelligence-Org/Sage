@@ -262,6 +262,10 @@ final class DatabaseService {
             try Migration_v2.apply(db: db)
             setUserVersion(2)
         }
+        if currentVersion < 3 {
+            try Migration_v3.run(db: db)
+            setUserVersion(3)
+        }
     }
 
     private func userVersion() -> Int {
@@ -463,6 +467,31 @@ final class DatabaseService {
         }
     }
 
+    /// Deletes a Conversation and all its child Messages (cascade via FK).
+    func deleteConversation(id: Int64) throws {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            DELETE FROM \(DatabaseSchema.Conversations.tableName)
+            WHERE \(DatabaseSchema.Conversations.id) = ?;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.deleteFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, id)
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.deleteFailed(errmsg(db))
+            }
+        }
+    }
+
     // MARK: - Message CRUD
 
     /// Inserts a new Message and returns the saved copy with its generated `id`.
@@ -596,6 +625,111 @@ final class DatabaseService {
         }
     }
 
+    // MARK: - PracticeSession CRUD
+
+    /// Inserts a new PracticeSession and returns the saved copy with its generated `id`.
+    @discardableResult
+    func insert(_ session: PracticeSession) throws -> PracticeSession {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let entriesJSON = try session.metricEntriesJSON()
+            let sql = """
+            INSERT INTO \(DatabaseSchema.PracticeSessions.tableName)
+                (\(DatabaseSchema.PracticeSessions.skillGoalId),
+                 \(DatabaseSchema.PracticeSessions.durationMinutes),
+                 \(DatabaseSchema.PracticeSessions.notes),
+                 \(DatabaseSchema.PracticeSessions.metricEntries),
+                 \(DatabaseSchema.PracticeSessions.createdAt))
+            VALUES (?, ?, ?, ?, ?);
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.insertFailed(errmsg(db))
+            }
+
+            if let goalId = session.skillGoalId {
+                sqlite3_bind_int64(stmt, 1, goalId)
+            } else {
+                sqlite3_bind_null(stmt, 1)
+            }
+            sqlite3_bind_int64(stmt, 2, Int64(session.durationMinutes))
+            bind(stmt, 3, session.notes)
+            bind(stmt, 4, entriesJSON)
+            bind(stmt, 5, iso8601(session.createdAt))
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.insertFailed(errmsg(db))
+            }
+
+            var saved = session
+            saved.id = sqlite3_last_insert_rowid(db)
+            return saved
+        }
+    }
+
+    /// Returns all PracticeSessions for the given skill goal, ordered newest first.
+    func fetchPracticeSessions(skillGoalId: Int64) throws -> [PracticeSession] {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            SELECT \(DatabaseSchema.PracticeSessions.id),
+                   \(DatabaseSchema.PracticeSessions.skillGoalId),
+                   \(DatabaseSchema.PracticeSessions.durationMinutes),
+                   \(DatabaseSchema.PracticeSessions.notes),
+                   \(DatabaseSchema.PracticeSessions.metricEntries),
+                   \(DatabaseSchema.PracticeSessions.createdAt)
+            FROM \(DatabaseSchema.PracticeSessions.tableName)
+            WHERE \(DatabaseSchema.PracticeSessions.skillGoalId) = ?
+            ORDER BY \(DatabaseSchema.PracticeSessions.createdAt) DESC;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.queryFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, skillGoalId)
+
+            var results: [PracticeSession] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                results.append(try rowToPracticeSession(stmt))
+            }
+            return results
+        }
+    }
+
+    /// Deletes a PracticeSession by its primary key.
+    func deletePracticeSession(id: Int64) throws {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            DELETE FROM \(DatabaseSchema.PracticeSessions.tableName)
+            WHERE \(DatabaseSchema.PracticeSessions.id) = ?;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.deleteFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, id)
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.deleteFailed(errmsg(db))
+            }
+        }
+    }
+
     // MARK: - Row mappers (Conversation / Message)
 
     private func rowToConversation(_ stmt: OpaquePointer?) -> Conversation {
@@ -631,6 +765,29 @@ final class DatabaseService {
             role: role,
             content: content,
             createdAt: parseISO8601(createdStr) ?? Date()
+        )
+    }
+
+    private func rowToPracticeSession(_ stmt: OpaquePointer?) throws -> PracticeSession {
+        let id             = sqlite3_column_int64(stmt, 0)
+        let goalId: Int64? = sqlite3_column_type(stmt, 1) != SQLITE_NULL
+                                ? sqlite3_column_int64(stmt, 1)
+                                : nil
+        let duration       = Int(sqlite3_column_int64(stmt, 2))
+        let notes          = string(stmt, 3)
+        let entriesJSON    = string(stmt, 4) ?? "[]"
+        let createdStr     = string(stmt, 5) ?? ""
+
+        let entries = try PracticeSession.decodeMetricEntries(from: entriesJSON)
+        let createdAt = parseISO8601(createdStr) ?? Date()
+
+        return PracticeSession(
+            id: id,
+            skillGoalId: goalId,
+            durationMinutes: duration,
+            notes: notes,
+            metricEntries: entries,
+            createdAt: createdAt
         )
     }
 }

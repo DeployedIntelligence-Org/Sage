@@ -9,6 +9,7 @@ import SwiftUI
 struct ChatView: View {
 
     @StateObject private var viewModel: ChatViewModel
+    @State private var showConversationList = false
 
     init(skillGoal: SkillGoal) {
         _viewModel = StateObject(wrappedValue: ChatViewModel(skillGoal: skillGoal))
@@ -28,6 +29,18 @@ struct ChatView: View {
         }
         .navigationTitle("Coach")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showConversationList = true
+                } label: {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                }
+            }
+        }
+        .sheet(isPresented: $showConversationList) {
+            ConversationListView(viewModel: viewModel, isPresented: $showConversationList)
+        }
         .task { await viewModel.loadConversation() }
         .alert("Error", isPresented: Binding(
             get: { viewModel.errorMessage != nil },

@@ -56,12 +56,15 @@ enum PromptTemplates {
     ///   - currentLevel: The user's self-reported current level.
     ///   - targetLevel: The user's goal level.
     ///   - metrics: The custom metrics the user tracks.
+    ///   - recentSessions: Up to the most recent practice sessions to give the coach context.
+    ///                     Pass an empty array (default) when no session history is available.
     /// - Returns: A system prompt string personalised to the user's profile.
     static func coachSystem(
         skillName: String,
         currentLevel: String?,
         targetLevel: String?,
-        metrics: [CustomMetric]
+        metrics: [CustomMetric],
+        recentSessions: [PracticeSession] = []
     ) -> String {
         let levelContext: String
         if let current = currentLevel, let target = targetLevel {
@@ -80,19 +83,68 @@ enum PromptTemplates {
             metricsContext = "They track the following metrics:\n\(list)"
         }
 
+        let sessionsContext: String
+        if recentSessions.isEmpty {
+            sessionsContext = ""
+        } else {
+            let lines = recentSessions.prefix(5).map { session -> String in
+                let dateStr = Self.shortDate(session.createdAt)
+                let duration = session.durationMinutes > 0 ? "\(session.durationMinutes) min" : nil
+                let metricLine = session.metricEntries.isEmpty ? nil :
+                    session.metricEntries.map { "\($0.metricName): \($0.value) \($0.unit)" }.joined(separator: ", ")
+                let notesLine = session.notes.map { "Notes: \($0)" }
+
+                let parts = [duration, metricLine, notesLine].compactMap { $0 }
+                let detail = parts.isEmpty ? "" : " — \(parts.joined(separator: "; "))"
+                return "- \(dateStr)\(detail)"
+            }
+            sessionsContext = "Recent practice sessions (newest first):\n\(lines.joined(separator: "\n"))"
+        }
+
+        let sections = [levelContext, metricsContext, sessionsContext]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+
         return """
         You are Sage, an expert AI coach helping the user improve at \(skillName).
-        \(levelContext)
-        \(metricsContext)
+        \(sections)
 
         Your role:
         - Provide specific, actionable coaching tailored to the user's level.
         - Reference their tracked metrics when relevant to make feedback concrete.
+        - If recent practice sessions are shown, use them to give context-aware feedback.
         - Celebrate progress and keep the tone encouraging but honest.
         - Ask clarifying questions when you need more context.
         - Keep responses concise and conversational — this is a chat, not a lecture.
         - If the user shares a practice result, acknowledge it and suggest a next step.
         """
+    }
+
+    // MARK: - Conversation Title
+
+    /// System prompt that instructs Claude to return only a short plain-text title.
+    static let conversationTitleSystem = """
+        You are a concise assistant. \
+        Respond with ONLY a short title (3-6 words) that captures the topic of the message. \
+        No punctuation at the end, no quotes, no extra text.
+        """
+
+    /// User-turn prompt asking Claude to generate a conversation title.
+    static func conversationTitleUser(firstMessage: String) -> String {
+        "Generate a short title for a conversation that starts with: \(firstMessage)"
+    }
+
+    // MARK: - Private helpers
+
+    private static let shortDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
+
+    private static func shortDate(_ date: Date) -> String {
+        shortDateFormatter.string(from: date)
     }
 }
 

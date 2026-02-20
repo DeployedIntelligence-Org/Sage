@@ -323,4 +323,130 @@ final class DatabaseServiceTests: XCTestCase {
         XCTAssertNotNil(updated?.updatedAt)
         XCTAssertGreaterThanOrEqual(updated!.updatedAt, before)
     }
+
+    // MARK: - deleteConversation
+
+    func testDeleteConversation_removesConversation() throws {
+        let goal = try db.insert(SkillGoal(skillName: "Cooking"))
+        let conv = try db.insert(Conversation(skillGoalId: goal.id, title: "Chat 1"))
+
+        try db.deleteConversation(id: conv.id!)
+
+        let remaining = try db.fetchConversations(skillGoalId: goal.id!)
+        XCTAssertTrue(remaining.isEmpty)
+    }
+
+    func testDeleteConversation_doesNotAffectOtherConversations() throws {
+        let goal = try db.insert(SkillGoal(skillName: "Cooking"))
+        let conv1 = try db.insert(Conversation(skillGoalId: goal.id, title: "Chat 1"))
+        let conv2 = try db.insert(Conversation(skillGoalId: goal.id, title: "Chat 2"))
+
+        try db.deleteConversation(id: conv1.id!)
+
+        let remaining = try db.fetchConversations(skillGoalId: goal.id!)
+        XCTAssertEqual(remaining.count, 1)
+        XCTAssertEqual(remaining.first?.id, conv2.id)
+    }
+
+    // MARK: - PracticeSession insert
+
+    func testInsertPracticeSession_returnsSessionWithID() throws {
+        let goal = try db.insert(SkillGoal(skillName: "Running"))
+        let session = PracticeSession(skillGoalId: goal.id, durationMinutes: 30)
+        let saved = try db.insert(session)
+
+        XCTAssertNotNil(saved.id)
+        XCTAssertEqual(saved.durationMinutes, 30)
+        XCTAssertEqual(saved.skillGoalId, goal.id)
+    }
+
+    func testInsertPracticeSession_withNotesAndMetrics() throws {
+        let goal = try db.insert(SkillGoal(skillName: "Piano"))
+        let entry = MetricEntry(metricName: "Scales per minute", value: 120, unit: "spm")
+        let session = PracticeSession(
+            skillGoalId: goal.id,
+            durationMinutes: 45,
+            notes: "Focused on C major scale",
+            metricEntries: [entry]
+        )
+        let saved = try db.insert(session)
+
+        XCTAssertEqual(saved.notes, "Focused on C major scale")
+        XCTAssertEqual(saved.metricEntries.count, 1)
+        XCTAssertEqual(saved.metricEntries.first?.value, 120)
+    }
+
+    // MARK: - PracticeSession fetch
+
+    func testFetchPracticeSessions_emptyForUnknownGoal() throws {
+        let results = try db.fetchPracticeSessions(skillGoalId: 9999)
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func testFetchPracticeSessions_returnsOnlyMatchingGoal() throws {
+        let goal1 = try db.insert(SkillGoal(skillName: "Guitar"))
+        let goal2 = try db.insert(SkillGoal(skillName: "Piano"))
+        try db.insert(PracticeSession(skillGoalId: goal1.id, durationMinutes: 20))
+        try db.insert(PracticeSession(skillGoalId: goal2.id, durationMinutes: 30))
+
+        let results = try db.fetchPracticeSessions(skillGoalId: goal1.id!)
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.durationMinutes, 20)
+    }
+
+    func testFetchPracticeSessions_orderedNewestFirst() throws {
+        let now = Date()
+        let goal = try db.insert(SkillGoal(skillName: "Chess"))
+        try db.insert(PracticeSession(skillGoalId: goal.id, durationMinutes: 10,
+                                      createdAt: now.addingTimeInterval(-60)))
+        try db.insert(PracticeSession(skillGoalId: goal.id, durationMinutes: 20,
+                                      createdAt: now))
+
+        let results = try db.fetchPracticeSessions(skillGoalId: goal.id!)
+        XCTAssertEqual(results[0].durationMinutes, 20)
+        XCTAssertEqual(results[1].durationMinutes, 10)
+    }
+
+    // MARK: - PracticeSession delete
+
+    func testDeletePracticeSession_removesSession() throws {
+        let goal = try db.insert(SkillGoal(skillName: "Yoga"))
+        let session = try db.insert(PracticeSession(skillGoalId: goal.id, durationMinutes: 15))
+
+        try db.deletePracticeSession(id: session.id!)
+
+        let remaining = try db.fetchPracticeSessions(skillGoalId: goal.id!)
+        XCTAssertTrue(remaining.isEmpty)
+    }
+
+    func testDeletePracticeSession_doesNotAffectOtherSessions() throws {
+        let goal = try db.insert(SkillGoal(skillName: "Yoga"))
+        let s1 = try db.insert(PracticeSession(skillGoalId: goal.id, durationMinutes: 10))
+        let s2 = try db.insert(PracticeSession(skillGoalId: goal.id, durationMinutes: 20))
+
+        try db.deletePracticeSession(id: s1.id!)
+
+        let remaining = try db.fetchPracticeSessions(skillGoalId: goal.id!)
+        XCTAssertEqual(remaining.count, 1)
+        XCTAssertEqual(remaining.first?.id, s2.id)
+    }
+
+    // MARK: - PracticeSession round-trip (JSON metric entries)
+
+    func testPracticeSession_metricEntriesRoundTrip() throws {
+        let goal = try db.insert(SkillGoal(skillName: "Swimming"))
+        let entries = [
+            MetricEntry(metricName: "Laps", value: 20, unit: "laps"),
+            MetricEntry(metricName: "Heart rate", value: 155, unit: "bpm")
+        ]
+        let session = PracticeSession(skillGoalId: goal.id, durationMinutes: 60,
+                                      metricEntries: entries)
+        let saved = try db.insert(session)
+        let fetched = try db.fetchPracticeSessions(skillGoalId: goal.id!).first!
+
+        XCTAssertEqual(fetched.id, saved.id)
+        XCTAssertEqual(fetched.metricEntries.count, 2)
+        XCTAssertEqual(fetched.metricEntries[0].metricName, "Laps")
+        XCTAssertEqual(fetched.metricEntries[1].value, 155)
+    }
 }

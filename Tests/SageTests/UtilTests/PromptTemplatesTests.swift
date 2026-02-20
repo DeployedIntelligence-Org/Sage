@@ -169,4 +169,63 @@ final class PromptTemplatesTests: XCTestCase {
         )
         XCTAssertFalse(prompt.isEmpty)
     }
+
+    func testCoachSystem_withRecentSessions_includesSectionHeader() {
+        let session = PracticeSession(
+            skillGoalId: 1,
+            durationMinutes: 30,
+            notes: "Worked on arpeggios",
+            metricEntries: [MetricEntry(metricName: "BPM", value: 80, unit: "bpm")]
+        )
+        let prompt = PromptTemplates.coachSystem(
+            skillName: "Piano",
+            currentLevel: nil,
+            targetLevel: nil,
+            metrics: [],
+            recentSessions: [session]
+        )
+        XCTAssertTrue(prompt.contains("Recent practice sessions"), "Should include sessions header")
+        XCTAssertTrue(prompt.contains("30 min"), "Should include session duration")
+        XCTAssertTrue(prompt.contains("BPM: 80 bpm"), "Should include metric entry")
+        XCTAssertTrue(prompt.contains("Worked on arpeggios"), "Should include notes")
+    }
+
+    func testCoachSystem_withNoRecentSessions_omitsSessionsSection() {
+        let prompt = PromptTemplates.coachSystem(
+            skillName: "Guitar",
+            currentLevel: nil,
+            targetLevel: nil,
+            metrics: [],
+            recentSessions: []
+        )
+        XCTAssertFalse(prompt.contains("Recent practice sessions"))
+    }
+
+    func testCoachSystem_capsSessionsAtFive() {
+        let sessions = (1...10).map { i in
+            PracticeSession(skillGoalId: 1, durationMinutes: i * 10)
+        }
+        let prompt = PromptTemplates.coachSystem(
+            skillName: "Yoga",
+            currentLevel: nil,
+            targetLevel: nil,
+            metrics: [],
+            recentSessions: sessions
+        )
+        // Only the first 5 sessions should appear; count bullet points
+        let bulletCount = prompt.components(separatedBy: "\n- ").count - 1
+        XCTAssertEqual(bulletCount, 5, "Should cap at 5 recent sessions")
+    }
+
+    // MARK: - conversationTitle
+
+    func testConversationTitleUser_containsFirstMessage() {
+        let prompt = PromptTemplates.conversationTitleUser(firstMessage: "How do I improve my bowing technique?")
+        XCTAssertTrue(prompt.contains("How do I improve my bowing technique?"))
+    }
+
+    func testConversationTitleSystem_mentionsShortTitle() {
+        let system = PromptTemplates.conversationTitleSystem
+        XCTAssertTrue(system.lowercased().contains("title"), "System prompt should mention title")
+    }
 }

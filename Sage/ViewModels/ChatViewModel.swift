@@ -6,20 +6,26 @@ import Foundation
 /// - Load or create a `Conversation` for the active `SkillGoal`.
 /// - Persist and expose `Message` rows.
 /// - Forward the full conversation history to `ClaudeService` on each send.
+/// - Manage a list of all conversations: select, create new, and delete.
+/// - Auto-generate a title for each conversation after the first assistant reply.
 @MainActor
 final class ChatViewModel: ObservableObject {
 
     // MARK: - Published state
 
     @Published var messages: [Message] = []
+    @Published var conversations: [Conversation] = []
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
 
     // MARK: - Private state
 
-    private var conversation: Conversation?
+    private(set) var conversation: Conversation?
     private let skillGoal: SkillGoal
+
+    /// The ID of the currently active conversation, for highlighting in `ConversationListView`.
+    var activeConversationId: Int64? { conversation?.id }
     private let db: DatabaseService
     private let claude: ClaudeService
 
@@ -37,7 +43,8 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// Call once when the view appears. Loads the most recent conversation (or creates one).
+    /// Call once when the view appears. Loads all conversations and opens the most recent one
+    /// (or creates one if none exist yet).
     func loadConversation() async {
         do {
             guard let goalId = skillGoal.id else { return }
@@ -50,9 +57,51 @@ final class ChatViewModel: ObservableObject {
                 convs = [newConv]
             }
 
-            conversation = convs[0]
-            guard let convId = conversation?.id else { return }
-            messages = try db.fetchMessages(conversationId: convId)
+            conversations = convs
+            try await selectConversation(convs[0])
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Conversation management
+
+    /// Switches the active conversation and loads its messages.
+    func selectConversation(_ conv: Conversation) async throws {
+        conversation = conv
+        guard let convId = conv.id else { return }
+        messages = try db.fetchMessages(conversationId: convId)
+    }
+
+    /// Creates a new blank conversation and makes it the active one.
+    func newConversation() async {
+        do {
+            guard let goalId = skillGoal.id else { return }
+            let newConv = try db.insert(Conversation(skillGoalId: goalId, title: nil))
+            conversations.insert(newConv, at: 0)
+            try await selectConversation(newConv)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Deletes a conversation (and its messages via cascade) and updates the list.
+    /// If the deleted conversation is currently active, switches to the next available one
+    /// (or creates a fresh conversation if none remain).
+    func deleteConversation(_ conv: Conversation) async {
+        do {
+            guard let convId = conv.id else { return }
+            try db.deleteConversation(id: convId)
+            conversations.removeAll { $0.id == convId }
+
+            // If we just deleted the active conversation, switch to another one.
+            if conversation?.id == convId {
+                if let next = conversations.first {
+                    try await selectConversation(next)
+                } else {
+                    await newConversation()
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -120,6 +169,11 @@ final class ChatViewModel: ObservableObject {
             if let lastIndex = messages.indices.last {
                 try db.updateMessageContent(messages[lastIndex])
             }
+
+            // 5. Auto-title the conversation after the very first assistant reply.
+            if conversation?.title == nil {
+                await generateTitle(for: convId, firstUserMessage: text)
+            }
         } catch {
             // On error remove the empty/partial assistant bubble and surface a message.
             if messages.last?.role == .assistant {
@@ -129,6 +183,41 @@ final class ChatViewModel: ObservableObject {
                 }
             }
             errorMessage = friendlyError(error)
+        }
+    }
+
+    // MARK: - Auto-title
+
+    /// Asks Claude to generate a short title for the conversation based on the first user message,
+    /// then persists it and refreshes the `conversations` list.
+    private func generateTitle(for convId: Int64, firstUserMessage: String) async {
+        let titlePrompt = PromptTemplates.conversationTitleUser(firstMessage: firstUserMessage)
+
+        guard let response = try? await claude.send(
+            userMessage: titlePrompt,
+            systemPrompt: PromptTemplates.conversationTitleSystem,
+            maxTokens: 30
+        ) else { return }
+
+        let raw = response.text
+
+        // Trim punctuation, quotes, and excess whitespace.
+        let title = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            .prefix(80)
+            .description
+
+        guard !title.isEmpty else { return }
+
+        guard var conv = conversation, conv.id == convId else { return }
+        conv.title = title
+        try? db.updateConversationTitle(conv)
+
+        // Reflect updated title in both the active conversation and the list.
+        conversation = conv
+        if let idx = conversations.firstIndex(where: { $0.id == convId }) {
+            conversations[idx] = conv
         }
     }
 

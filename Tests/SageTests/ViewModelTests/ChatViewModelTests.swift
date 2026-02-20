@@ -286,6 +286,95 @@ final class ChatViewModelTests: XCTestCase {
 
         XCTAssertFalse(vm.isLoading, "isLoading should be false after send completes")
     }
+
+    // MARK: - Conversation list management
+
+    func testLoadConversation_populatesConversationsList() async throws {
+        let (db, dir) = try makeTempDB()
+        defer { db.close(); try? FileManager.default.removeItem(at: dir) }
+
+        let goal = try db.insert(SkillGoal(skillName: "Photography"))
+        try db.insert(Conversation(skillGoalId: goal.id, title: "Session A"))
+        try db.insert(Conversation(skillGoalId: goal.id, title: "Session B"))
+
+        let claude = makeClaudeService()
+        let vm = makeViewModel(skillGoal: goal, db: db, claude: claude)
+        await vm.loadConversation()
+
+        XCTAssertEqual(vm.conversations.count, 2)
+    }
+
+    func testNewConversation_addsToConversationsList() async throws {
+        let (db, dir) = try makeTempDB()
+        defer { db.close(); try? FileManager.default.removeItem(at: dir) }
+
+        let goal = try db.insert(SkillGoal(skillName: "Violin"))
+        let claude = makeClaudeService()
+        let vm = makeViewModel(skillGoal: goal, db: db, claude: claude)
+        await vm.loadConversation()
+
+        let countBefore = vm.conversations.count
+        await vm.newConversation()
+
+        XCTAssertEqual(vm.conversations.count, countBefore + 1)
+    }
+
+    func testNewConversation_clearsMessages() async throws {
+        let (db, dir) = try makeTempDB()
+        defer { db.close(); try? FileManager.default.removeItem(at: dir) }
+
+        let goal = try db.insert(SkillGoal(skillName: "Cello"))
+        let conv = try db.insert(Conversation(skillGoalId: goal.id, title: "Old"))
+        try db.insert(Message(conversationId: conv.id!, role: .user, content: "Hi"))
+
+        let claude = makeClaudeService()
+        let vm = makeViewModel(skillGoal: goal, db: db, claude: claude)
+        await vm.loadConversation()
+
+        XCTAssertFalse(vm.messages.isEmpty, "Should have pre-existing messages")
+
+        await vm.newConversation()
+
+        XCTAssertTrue(vm.messages.isEmpty, "New conversation should start empty")
+    }
+
+    func testDeleteConversation_removesFromList() async throws {
+        let (db, dir) = try makeTempDB()
+        defer { db.close(); try? FileManager.default.removeItem(at: dir) }
+
+        let goal = try db.insert(SkillGoal(skillName: "Flute"))
+        try db.insert(Conversation(skillGoalId: goal.id, title: "Conv 1"))
+        try db.insert(Conversation(skillGoalId: goal.id, title: "Conv 2"))
+
+        let claude = makeClaudeService()
+        let vm = makeViewModel(skillGoal: goal, db: db, claude: claude)
+        await vm.loadConversation()
+
+        let toDelete = vm.conversations[0]
+        await vm.deleteConversation(toDelete)
+
+        XCTAssertFalse(vm.conversations.contains { $0.id == toDelete.id },
+                       "Deleted conversation should be removed from the list")
+    }
+
+    func testDeleteConversation_createsNewOne_whenLastDeleted() async throws {
+        let (db, dir) = try makeTempDB()
+        defer { db.close(); try? FileManager.default.removeItem(at: dir) }
+
+        let goal = try db.insert(SkillGoal(skillName: "Oboe"))
+        let claude = makeClaudeService()
+        let vm = makeViewModel(skillGoal: goal, db: db, claude: claude)
+        await vm.loadConversation()
+
+        // There should be exactly 1 auto-created conversation.
+        XCTAssertEqual(vm.conversations.count, 1)
+        let only = vm.conversations[0]
+        await vm.deleteConversation(only)
+
+        // After deleting the last one, a fresh conversation must be created automatically.
+        XCTAssertEqual(vm.conversations.count, 1, "Should auto-create a new conversation")
+        XCTAssertNotEqual(vm.conversations[0].id, only.id, "New conversation should have a different id")
+    }
 }
 
 // MARK: - Test Doubles
