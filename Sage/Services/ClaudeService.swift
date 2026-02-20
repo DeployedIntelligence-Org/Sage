@@ -81,6 +81,40 @@ final class ClaudeService {
         return try await perform(request, apiKey: apiKey, attempt: 0)
     }
 
+    /// Sends a full conversation history to Claude and returns the assistant's next reply.
+    ///
+    /// Use this for multi-turn chat where prior messages must be included.
+    ///
+    /// - Parameters:
+    ///   - messages: Ordered list of prior turns (user + assistant), followed by the new user turn.
+    ///   - systemPrompt: Optional system context.
+    ///   - model: The Claude model to use. Defaults to `claude-opus-4-6`.
+    ///   - maxTokens: Maximum tokens in the response.
+    func sendConversation(
+        messages: [Message],
+        systemPrompt: String? = nil,
+        model: String = Constant.defaultModel,
+        maxTokens: Int = 2048
+    ) async throws -> ClaudeResponse {
+        let apiKey = try fetchAPIKey()
+
+        let claudeMessages = messages.map { msg in
+            ClaudeMessage(
+                role: msg.role == .user ? .user : .assistant,
+                content: msg.content
+            )
+        }
+
+        let request = ClaudeRequest(
+            model: model,
+            maxTokens: maxTokens,
+            system: systemPrompt,
+            messages: claudeMessages
+        )
+
+        return try await perform(request, apiKey: apiKey, attempt: 0)
+    }
+
     // MARK: - Private
 
     private func fetchAPIKey() throws -> String {

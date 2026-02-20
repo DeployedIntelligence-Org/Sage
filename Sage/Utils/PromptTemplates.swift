@@ -46,6 +46,54 @@ enum PromptTemplates {
         Respond ONLY with a valid JSON object. \
         Do not include any explanation, markdown, code fences, or text outside the JSON object.
         """
+
+    // MARK: - AI Coach Chat
+
+    /// Dynamic system prompt for the conversational AI coach.
+    ///
+    /// - Parameters:
+    ///   - skillName: The skill the user is learning.
+    ///   - currentLevel: The user's self-reported current level.
+    ///   - targetLevel: The user's goal level.
+    ///   - metrics: The custom metrics the user tracks.
+    /// - Returns: A system prompt string personalised to the user's profile.
+    static func coachSystem(
+        skillName: String,
+        currentLevel: String?,
+        targetLevel: String?,
+        metrics: [CustomMetric]
+    ) -> String {
+        let levelContext: String
+        if let current = currentLevel, let target = targetLevel {
+            levelContext = "The user is currently at \(current) level and wants to reach \(target) level."
+        } else if let current = currentLevel {
+            levelContext = "The user is currently at \(current) level."
+        } else {
+            levelContext = ""
+        }
+
+        let metricsContext: String
+        if metrics.isEmpty {
+            metricsContext = ""
+        } else {
+            let list = metrics.map { "- \($0.name) (\($0.unit))" }.joined(separator: "\n")
+            metricsContext = "They track the following metrics:\n\(list)"
+        }
+
+        return """
+        You are Sage, an expert AI coach helping the user improve at \(skillName).
+        \(levelContext)
+        \(metricsContext)
+
+        Your role:
+        - Provide specific, actionable coaching tailored to the user's level.
+        - Reference their tracked metrics when relevant to make feedback concrete.
+        - Celebrate progress and keep the tone encouraging but honest.
+        - Ask clarifying questions when you need more context.
+        - Keep responses concise and conversational — this is a chat, not a lecture.
+        - If the user shares a practice result, acknowledge it and suggest a next step.
+        """
+    }
 }
 
 // MARK: - Parsed Response

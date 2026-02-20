@@ -3,6 +3,8 @@ import SwiftUI
 /// Root tab container shown after onboarding is complete.
 struct HomeView: View {
 
+    @State private var skillGoal: SkillGoal? = nil
+
     var body: some View {
         TabView {
             NavigationStack {
@@ -16,12 +18,7 @@ struct HomeView: View {
             .tabItem { Label("Practice", systemImage: "figure.run") }
 
             NavigationStack {
-                placeholderTab(
-                    icon: "bubble.left.and.bubble.right",
-                    title: "Chat",
-                    description: "Get coaching and feedback from Sage."
-                )
-                .navigationTitle("Chat")
+                chatTab
             }
             .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
 
@@ -35,6 +32,29 @@ struct HomeView: View {
             }
             .tabItem { Label("Insights", systemImage: "chart.line.uptrend.xyaxis") }
         }
+        .task { loadSkillGoal() }
+    }
+
+    // MARK: - Chat tab
+
+    @ViewBuilder
+    private var chatTab: some View {
+        if let goal = skillGoal {
+            ChatView(skillGoal: goal)
+        } else {
+            placeholderTab(
+                icon: "bubble.left.and.bubble.right",
+                title: "Chat",
+                description: "Get coaching and feedback from Sage."
+            )
+            .navigationTitle("Chat")
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func loadSkillGoal() {
+        skillGoal = try? DatabaseService.shared.fetchAll().first
     }
 
     private func placeholderTab(icon: String, title: String, description: String) -> some View {

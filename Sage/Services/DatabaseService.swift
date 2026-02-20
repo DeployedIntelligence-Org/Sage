@@ -258,7 +258,10 @@ final class DatabaseService {
             try Migration_v1.apply(db: db)
             setUserVersion(1)
         }
-        // Future: if currentVersion < 2 { try Migration_v2.apply(db: db) ... }
+        if currentVersion < 2 {
+            try Migration_v2.apply(db: db)
+            setUserVersion(2)
+        }
     }
 
     private func userVersion() -> Int {
@@ -350,5 +353,230 @@ final class DatabaseService {
         if let d = dateFormatter.date(from: string) { return d }
         let fallback = ISO8601DateFormatter()
         return fallback.date(from: string)
+    }
+
+    // MARK: - Conversation CRUD
+
+    /// Inserts a new Conversation and returns the saved copy with its generated `id`.
+    @discardableResult
+    func insert(_ conversation: Conversation) throws -> Conversation {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            INSERT INTO \(DatabaseSchema.Conversations.tableName)
+                (\(DatabaseSchema.Conversations.skillGoalId),
+                 \(DatabaseSchema.Conversations.title),
+                 \(DatabaseSchema.Conversations.createdAt),
+                 \(DatabaseSchema.Conversations.updatedAt))
+            VALUES (?, ?, ?, ?);
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.insertFailed(errmsg(db))
+            }
+
+            if let goalId = conversation.skillGoalId {
+                sqlite3_bind_int64(stmt, 1, goalId)
+            } else {
+                sqlite3_bind_null(stmt, 1)
+            }
+            bind(stmt, 2, conversation.title)
+            bind(stmt, 3, iso8601(conversation.createdAt))
+            bind(stmt, 4, iso8601(conversation.updatedAt))
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.insertFailed(errmsg(db))
+            }
+
+            var saved = conversation
+            saved.id = sqlite3_last_insert_rowid(db)
+            return saved
+        }
+    }
+
+    /// Returns all Conversations for the given skill goal, ordered newest first.
+    func fetchConversations(skillGoalId: Int64) throws -> [Conversation] {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            SELECT \(DatabaseSchema.Conversations.id),
+                   \(DatabaseSchema.Conversations.skillGoalId),
+                   \(DatabaseSchema.Conversations.title),
+                   \(DatabaseSchema.Conversations.createdAt),
+                   \(DatabaseSchema.Conversations.updatedAt)
+            FROM \(DatabaseSchema.Conversations.tableName)
+            WHERE \(DatabaseSchema.Conversations.skillGoalId) = ?
+            ORDER BY \(DatabaseSchema.Conversations.updatedAt) DESC;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.queryFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, skillGoalId)
+
+            var results: [Conversation] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                results.append(rowToConversation(stmt))
+            }
+            return results
+        }
+    }
+
+    /// Updates the `title` and `updated_at` of an existing Conversation.
+    func updateConversationTitle(_ conversation: Conversation) throws {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+            guard let convId = conversation.id else {
+                throw DatabaseError.updateFailed("Conversation has no id")
+            }
+
+            let sql = """
+            UPDATE \(DatabaseSchema.Conversations.tableName)
+            SET \(DatabaseSchema.Conversations.title)     = ?,
+                \(DatabaseSchema.Conversations.updatedAt) = ?
+            WHERE \(DatabaseSchema.Conversations.id) = ?;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.updateFailed(errmsg(db))
+            }
+
+            bind(stmt, 1, conversation.title)
+            bind(stmt, 2, iso8601(Date()))
+            sqlite3_bind_int64(stmt, 3, convId)
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.updateFailed(errmsg(db))
+            }
+        }
+    }
+
+    // MARK: - Message CRUD
+
+    /// Inserts a new Message and returns the saved copy with its generated `id`.
+    @discardableResult
+    func insert(_ message: Message) throws -> Message {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            INSERT INTO \(DatabaseSchema.Messages.tableName)
+                (\(DatabaseSchema.Messages.conversationId),
+                 \(DatabaseSchema.Messages.role),
+                 \(DatabaseSchema.Messages.content),
+                 \(DatabaseSchema.Messages.createdAt))
+            VALUES (?, ?, ?, ?);
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.insertFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, message.conversationId)
+            bind(stmt, 2, message.role.rawValue)
+            bind(stmt, 3, message.content)
+            bind(stmt, 4, iso8601(message.createdAt))
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.insertFailed(errmsg(db))
+            }
+
+            // Touch parent conversation's updated_at so the list re-sorts correctly.
+            sqlite3_exec(db, """
+            UPDATE \(DatabaseSchema.Conversations.tableName)
+            SET \(DatabaseSchema.Conversations.updatedAt) = '\(iso8601(Date()))'
+            WHERE \(DatabaseSchema.Conversations.id) = \(message.conversationId);
+            """, nil, nil, nil)
+
+            var saved = message
+            saved.id = sqlite3_last_insert_rowid(db)
+            return saved
+        }
+    }
+
+    /// Returns all Messages for a conversation ordered by creation time (oldest first).
+    func fetchMessages(conversationId: Int64) throws -> [Message] {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            SELECT \(DatabaseSchema.Messages.id),
+                   \(DatabaseSchema.Messages.conversationId),
+                   \(DatabaseSchema.Messages.role),
+                   \(DatabaseSchema.Messages.content),
+                   \(DatabaseSchema.Messages.createdAt)
+            FROM \(DatabaseSchema.Messages.tableName)
+            WHERE \(DatabaseSchema.Messages.conversationId) = ?
+            ORDER BY \(DatabaseSchema.Messages.createdAt) ASC, \(DatabaseSchema.Messages.id) ASC;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.queryFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, conversationId)
+
+            var results: [Message] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                if let msg = rowToMessage(stmt) { results.append(msg) }
+            }
+            return results
+        }
+    }
+
+    // MARK: - Row mappers (Conversation / Message)
+
+    private func rowToConversation(_ stmt: OpaquePointer?) -> Conversation {
+        let id          = sqlite3_column_int64(stmt, 0)
+        let goalId      = sqlite3_column_type(stmt, 1) != SQLITE_NULL
+                            ? sqlite3_column_int64(stmt, 1) as Int64?
+                            : nil
+        let title       = string(stmt, 2)
+        let createdStr  = string(stmt, 3) ?? ""
+        let updatedStr  = string(stmt, 4) ?? ""
+
+        return Conversation(
+            id: id,
+            skillGoalId: goalId,
+            title: title,
+            createdAt: parseISO8601(createdStr) ?? Date(),
+            updatedAt: parseISO8601(updatedStr) ?? Date()
+        )
+    }
+
+    private func rowToMessage(_ stmt: OpaquePointer?) -> Message? {
+        let id           = sqlite3_column_int64(stmt, 0)
+        let convId       = sqlite3_column_int64(stmt, 1)
+        let roleStr      = string(stmt, 2) ?? "user"
+        let content      = string(stmt, 3) ?? ""
+        let createdStr   = string(stmt, 4) ?? ""
+
+        guard let role = Message.Role(rawValue: roleStr) else { return nil }
+
+        return Message(
+            id: id,
+            conversationId: convId,
+            role: role,
+            content: content,
+            createdAt: parseISO8601(createdStr) ?? Date()
+        )
     }
 }
