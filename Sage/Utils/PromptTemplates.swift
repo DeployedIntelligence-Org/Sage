@@ -79,7 +79,7 @@ enum PromptTemplates {
         if metrics.isEmpty {
             metricsContext = ""
         } else {
-            let list = metrics.map { "- \($0.name) (\($0.unit))" }.joined(separator: "\n")
+            let list = metrics.map { "• \($0.name) (\($0.unit))" }.joined(separator: "\n")
             metricsContext = "They track the following metrics:\n\(list)"
         }
 
@@ -91,14 +91,14 @@ enum PromptTemplates {
                 let dateStr = Self.shortDate(session.createdAt)
                 let duration = session.durationMinutes > 0 ? "\(session.durationMinutes) min" : nil
                 let metricLine = session.metricEntries.isEmpty ? nil :
-                    session.metricEntries.map { "\($0.metricName): \($0.value) \($0.unit)" }.joined(separator: ", ")
+                    session.metricEntries.map { "\($0.metricName): \(formatNumber($0.value)) \($0.unit)" }.joined(separator: ", ")
                 let notesLine = session.notes.map { "Notes: \($0)" }
 
                 let parts = [duration, metricLine, notesLine].compactMap { $0 }
                 let detail = parts.isEmpty ? "" : " — \(parts.joined(separator: "; "))"
                 return "- \(dateStr)\(detail)"
             }
-            sessionsContext = "Recent practice sessions (newest first):\n\(lines.joined(separator: "\n"))"
+            sessionsContext = "Recent practice sessions (newest first):\n" + lines.joined(separator: "\n")
         }
 
         let sections = [levelContext, metricsContext, sessionsContext]
@@ -110,13 +110,13 @@ enum PromptTemplates {
         \(sections)
 
         Your role:
-        - Provide specific, actionable coaching tailored to the user's level.
-        - Reference their tracked metrics when relevant to make feedback concrete.
-        - If recent practice sessions are shown, use them to give context-aware feedback.
-        - Celebrate progress and keep the tone encouraging but honest.
-        - Ask clarifying questions when you need more context.
-        - Keep responses concise and conversational — this is a chat, not a lecture.
-        - If the user shares a practice result, acknowledge it and suggest a next step.
+        • Provide specific, actionable coaching tailored to the user's level.
+        • Reference their tracked metrics when relevant to make feedback concrete.
+        • If recent practice sessions are shown, use them to give context-aware feedback.
+        • Celebrate progress and keep the tone encouraging but honest.
+        • Ask clarifying questions when you need more context.
+        • Keep responses concise and conversational — this is a chat, not a lecture.
+        • If the user shares a practice result, acknowledge it and suggest a next step.
         """
     }
 
@@ -146,6 +146,17 @@ enum PromptTemplates {
     private static func shortDate(_ date: Date) -> String {
         shortDateFormatter.string(from: date)
     }
+
+    private static func formatNumber(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        } else {
+            var s = String(format: "%.2f", value)
+            while s.last == "0" { s.removeLast() }
+            if s.last == "." { s.removeLast() }
+            return s
+        }
+    }
 }
 
 // MARK: - Parsed Response
@@ -167,3 +178,4 @@ struct SuggestedMetric: Decodable, Identifiable {
         CustomMetric(name: name, unit: unit, isHigherBetter: isHigherBetter)
     }
 }
+

@@ -99,12 +99,15 @@ final class OnboardingUITests: XCTestCase {
         advanceToStepThree()
 
         let nameField = app.textFields["Name (e.g. Speed)"]
+        nameField.ensureVisible(in: app)
         nameField.tap()
         nameField.typeText("Words per minute")
 
         let unitField = app.textFields["Unit (e.g. wpm)"]
+        unitField.ensureVisible(in: app)
         unitField.tap()
-        unitField.typeText("wpm")
+        // On macOS, hasKeyboardFocus can be unreliable; rely on hittable and retry typing.
+        unitField.typeTextReliably("wpm")
 
         XCTAssertTrue(
             app.buttons["Add"].isEnabled,
@@ -142,6 +145,7 @@ final class OnboardingUITests: XCTestCase {
 
     private func enterSkillName(_ name: String) {
         let field = app.textFields["e.g. Fingerpicking Guitar"]
+        field.ensureVisible(in: app)
         field.tap()
         field.typeText(name)
     }
@@ -170,13 +174,37 @@ final class OnboardingUITests: XCTestCase {
 
     private func addMetric(name: String, unit: String) {
         let nameField = app.textFields["Name (e.g. Speed)"]
+        nameField.ensureVisible(in: app)
         nameField.tap()
         nameField.typeText(name)
 
         let unitField = app.textFields["Unit (e.g. wpm)"]
+        unitField.ensureVisible(in: app)
         unitField.tap()
-        unitField.typeText(unit)
+        unitField.typeTextReliably(unit)
 
         app.buttons["Add"].tap()
     }
 }
+
+private extension XCUIElement {
+    // Scroll the element into view if it’s inside a scroll view.
+    func ensureVisible(in app: XCUIApplication, timeout: TimeInterval = 2.0) {
+        if !isHittable {
+            app.swipeUp()
+            _ = waitForExistence(timeout: timeout)
+        }
+    }
+
+    // Retry typing a short string to mitigate occasional focus issues on macOS.
+    func typeTextReliably(_ text: String, attempts: Int = 2) {
+        for i in 0..<attempts {
+            if i > 0 { tap() }
+            typeText(text)
+            // If value already contains the typed text, stop early.
+            // value is Any?; cast to String if possible.
+            if let v = self.value as? String, v.contains(text) { break }
+        }
+    }
+}
+
