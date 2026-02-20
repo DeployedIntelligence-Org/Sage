@@ -28,7 +28,7 @@ struct MessageBubble: View {
                 .foregroundStyle(isUser ? .white : .primary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(bubbleBackground, in: bubbleShape)
+                .background(bubbleColor, in: bubbleShape)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !isUser { Spacer(minLength: 48) }
@@ -47,13 +47,8 @@ struct MessageBubble: View {
         )
     }
 
-    @ViewBuilder
-    private var bubbleBackground: some View {
-        if isUser {
-            Color.accentColor
-        } else {
-            Color(.secondarySystemBackground)
-        }
+    private var bubbleColor: Color {
+        isUser ? .accentColor : Color(.secondarySystemBackground)
     }
 }
 
