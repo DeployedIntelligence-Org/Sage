@@ -64,9 +64,17 @@ struct ChatView: View {
                             .padding(.top, 60)
                     }
 
-                    ForEach(viewModel.messages) { message in
-                        MessageBubble(message: message)
-                            .id(message.id)
+                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                        MessageBubble(
+                            message: message,
+                            isFailed: message.id == viewModel.failedUserMessageId,
+                            isLastAssistantMessage: message.role == .assistant
+                                && index == viewModel.messages.count - 1,
+                            onDelete: { Task { await viewModel.deleteMessage(message) } },
+                            onRegenerate: { Task { await viewModel.regenerateResponse() } },
+                            onRetry: { Task { await viewModel.retryLastFailedMessage() } }
+                        )
+                        .id(message.id)
                     }
 
                     // Show the animated dots only while waiting for the first streaming chunk.
