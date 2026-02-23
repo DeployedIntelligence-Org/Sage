@@ -18,6 +18,8 @@ final class ChatViewModel: ObservableObject {
     @Published var inputText: String = ""
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
+    /// The ID of the user message that most recently failed to send.
+    @Published var failedUserMessageId: Int64? = nil
 
     // MARK: - Private state
 
@@ -120,6 +122,7 @@ final class ChatViewModel: ObservableObject {
 
         inputText = ""
         errorMessage = nil
+        failedUserMessageId = nil
 
         // 1. Persist & show the user message immediately for instant UI feedback.
         var userMsg = Message(conversationId: convId, role: .user, content: text)
@@ -134,7 +137,41 @@ final class ChatViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        // 2. Insert an empty assistant placeholder so the bubble appears straight away.
+        // 2. Stream assistant reply (inserts placeholder, streams, persists, auto-titles).
+        await streamAssistantReply(convId: convId, failedUserMsgId: userMsg.id)
+    }
+
+    // MARK: - Message actions
+
+    /// Deletes a message from the database and removes it from the in-memory list.
+    func deleteMessage(_ message: Message) async {
+        guard let id = message.id else { return }
+        do {
+            try db.deleteMessage(id: id)
+            messages.removeAll { $0.id == id }
+            if failedUserMessageId == id { failedUserMessageId = nil }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Retries sending after a failure. Clears the failed state and re-streams a response
+    /// for the existing user message (which was already persisted).
+    func retryLastFailedMessage() async {
+        guard !isLoading, let convId = conversation?.id else { return }
+        failedUserMessageId = nil
+        errorMessage = nil
+
+        isLoading = true
+        defer { isLoading = false }
+
+        await streamAssistantReply(convId: convId)
+    }
+
+    /// Inserts an empty assistant placeholder and streams a reply from Claude using the
+    /// current messages list. Shared by `sendMessage`, `regenerateResponse`, and `retryLastFailedMessage`.
+    /// Pass `failedUserMsgId` to mark the originating user message as failed on error.
+    private func streamAssistantReply(convId: Int64, failedUserMsgId: Int64? = nil) async {
         var assistantMsg = Message(conversationId: convId, role: .assistant, content: "")
         do {
             assistantMsg = try db.insert(assistantMsg)
@@ -144,7 +181,6 @@ final class ChatViewModel: ObservableObject {
         }
         messages.append(assistantMsg)
 
-        // 3. Stream chunks from Claude, appending each to the last message.
         do {
             let systemPrompt = PromptTemplates.coachSystem(
                 skillName: skillGoal.skillName,
@@ -153,35 +189,32 @@ final class ChatViewModel: ObservableObject {
                 metrics: skillGoal.customMetrics
             )
 
+            let historyForStream = messages.dropLast() // exclude the empty placeholder
             let stream = claude.streamConversation(
-                messages: messages.dropLast(), // exclude the empty placeholder
+                messages: Array(historyForStream),
                 systemPrompt: systemPrompt
             )
 
             for try await chunk in stream {
-                // Grow the last message's content in place — SwiftUI re-renders automatically.
                 if let lastIndex = messages.indices.last {
                     messages[lastIndex].content += chunk
                 }
             }
 
-            // 4. Persist the fully-assembled assistant reply to the database.
             if let lastIndex = messages.indices.last {
                 try db.updateMessageContent(messages[lastIndex])
             }
 
-            // 5. Auto-title the conversation after the very first assistant reply.
-            if conversation?.title == nil {
-                await generateTitle(for: convId, firstUserMessage: text)
+            if conversation?.title == nil, let firstUser = messages.first(where: { $0.role.isUser }) {
+                // Fire-and-forget: title generation must not hold isLoading true.
+                Task { await self.generateTitle(for: convId, firstUserMessage: firstUser.content) }
             }
         } catch {
-            // On error remove the empty/partial assistant bubble and surface a message.
             if messages.last?.role == .assistant {
                 let partial = messages.removeLast()
-                if let id = partial.id {
-                    try? db.deleteMessage(id: id)
-                }
+                if let id = partial.id { try? db.deleteMessage(id: id) }
             }
+            failedUserMessageId = failedUserMsgId
             errorMessage = friendlyError(error)
         }
     }

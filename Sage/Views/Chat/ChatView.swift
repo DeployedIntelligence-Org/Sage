@@ -64,9 +64,18 @@ struct ChatView: View {
                             .padding(.top, 60)
                     }
 
-                    ForEach(viewModel.messages) { message in
-                        MessageBubble(message: message)
+                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { _, message in
+                        // Don't render the assistant placeholder until the first token arrives —
+                        // the typing indicator below fills that visual slot in the meantime.
+                        if message.role.isUser || !message.content.isEmpty {
+                            MessageBubble(
+                                message: message,
+                                isFailed: message.id == viewModel.failedUserMessageId,
+                                onDelete: { Task { await viewModel.deleteMessage(message) } },
+                                onRetry: { Task { await viewModel.retryLastFailedMessage() } }
+                            )
                             .id(message.id)
+                        }
                     }
 
                     // Show the animated dots only while waiting for the first streaming chunk.
