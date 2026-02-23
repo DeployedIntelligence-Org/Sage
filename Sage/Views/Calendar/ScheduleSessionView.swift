@@ -1,19 +1,41 @@
 import SwiftUI
 
 /// Sheet that lets the user confirm and book a free time slot as a practice session.
+///
+/// The start time is editable via a DatePicker clamped to the available free window,
+/// so the user can pick any valid start within the slot (not just the earliest time).
 struct ScheduleSessionView: View {
 
     let slot: DateInterval
     @ObservedObject var viewModel: CalendarViewModel
     @Environment(\.dismiss) private var dismiss
 
+    @State private var sessionStart: Date
     @State private var isScheduling = false
     @State private var didSchedule  = false
 
+    // MARK: - Init
+
+    init(slot: DateInterval, viewModel: CalendarViewModel) {
+        self.slot = slot
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        _sessionStart = State(initialValue: slot.start)
+    }
+
     // MARK: - Derived
 
-    private var sessionStart: Date { slot.start }
-    private var sessionEnd: Date   { slot.start.addingTimeInterval(viewModel.selectedDuration) }
+    private var sessionEnd: Date {
+        sessionStart.addingTimeInterval(viewModel.selectedDuration)
+    }
+
+    /// Latest valid start so the session still fits entirely within the free window.
+    private var latestStart: Date {
+        slot.end.addingTimeInterval(-viewModel.selectedDuration)
+    }
+
+    private var startIsAdjustable: Bool {
+        latestStart > slot.start
+    }
 
     private var skillName: String {
         viewModel.skillGoal?.skillName ?? "your skill"
@@ -73,20 +95,34 @@ struct ScheduleSessionView: View {
                         .fontWeight(.medium)
                 }
 
-                HStack {
-                    Label("Start", systemImage: "clock")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(sessionStart.formatted(date: .omitted, time: .shortened))
-                        .fontWeight(.medium)
+                // Editable start time — picker when adjustable, static label otherwise
+                if startIsAdjustable {
+                    DatePicker(
+                        selection: $sessionStart,
+                        in: slot.start...latestStart,
+                        displayedComponents: .hourAndMinute
+                    ) {
+                        Label("Start", systemImage: "clock")
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    HStack {
+                        Label("Start", systemImage: "clock")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(sessionStart.formatted(date: .omitted, time: .shortened))
+                            .fontWeight(.medium)
+                    }
                 }
 
+                // End is always derived — read-only
                 HStack {
                     Label("End", systemImage: "clock.badge.checkmark")
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(sessionEnd.formatted(date: .omitted, time: .shortened))
                         .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
                 }
 
                 HStack {
@@ -109,7 +145,9 @@ struct ScheduleSessionView: View {
                         .foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("This slot will be added to your calendar as \"Practice \(skillName)\".")
+                Text(startIsAdjustable
+                     ? "Tap the start time above to choose when within this window your session begins."
+                     : "This window fits exactly one session of this duration.")
                     .font(.caption)
             }
 
@@ -174,7 +212,7 @@ struct ScheduleSessionView: View {
 
     private func confirmSchedule() async {
         isScheduling = true
-        let success = await viewModel.scheduleSession(in: slot)
+        let success = await viewModel.scheduleSession(startTime: sessionStart)
         isScheduling = false
         if success { didSchedule = true }
     }

@@ -88,22 +88,22 @@ final class CalendarViewModel: ObservableObject {
     ///
     /// On success, sets `lastScheduled`, refreshes free slots, and returns `true`.
     /// On failure, sets `schedulingError` and returns `false`.
-    func scheduleSession(in slot: DateInterval) async -> Bool {
+    func scheduleSession(startTime: Date) async -> Bool {
         guard let goal = skillGoal else {
             schedulingError = "No active skill goal found."
             return false
         }
 
-        let sessionEnd = slot.start.addingTimeInterval(selectedDuration)
+        let sessionEnd = startTime.addingTimeInterval(selectedDuration)
         let eventId = calendarService.scheduleSession(
             skillName: goal.skillName,
-            startTime: slot.start,
+            startTime: startTime,
             duration: selectedDuration
         )
 
         let session = ScheduledSession(
             skillGoalId: goal.id,
-            scheduledStart: slot.start,
+            scheduledStart: startTime,
             scheduledEnd: sessionEnd,
             calendarEventId: eventId
         )
