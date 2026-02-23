@@ -3,7 +3,7 @@ import Foundation
 /// Central source of truth for table names, column names, and the current schema version.
 enum DatabaseSchema {
 
-    static let currentVersion = 3
+    static let currentVersion = 4
 
     enum SkillGoals {
         static let tableName = "skill_goals"
@@ -47,6 +47,19 @@ enum DatabaseSchema {
         static let durationMinutes = "duration_minutes"
         static let notes           = "notes"
         static let metricEntries   = "metric_entries"
+        static let createdAt       = "created_at"
+    }
+
+    enum ScheduledSessions {
+        static let tableName = "scheduled_sessions"
+
+        static let id              = "id"
+        static let skillGoalId     = "skill_goal_id"
+        static let scheduledStart  = "scheduled_start"
+        static let scheduledEnd    = "scheduled_end"
+        static let calendarEventId = "calendar_event_id"
+        static let completed       = "completed"
+        static let completedAt     = "completed_at"
         static let createdAt       = "created_at"
     }
 }

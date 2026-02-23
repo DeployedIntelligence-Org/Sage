@@ -266,6 +266,10 @@ final class DatabaseService {
             try Migration_v3.run(db: db)
             setUserVersion(3)
         }
+        if currentVersion < 4 {
+            try Migration_v4.run(db: db)
+            setUserVersion(4)
+        }
     }
 
     private func userVersion() -> Int {
@@ -788,6 +792,169 @@ final class DatabaseService {
             notes: notes,
             metricEntries: entries,
             createdAt: createdAt
+        )
+    }
+
+    // MARK: - ScheduledSession CRUD
+
+    /// Inserts a new ScheduledSession and returns the saved copy with its generated `id`.
+    @discardableResult
+    func insert(_ session: ScheduledSession) throws -> ScheduledSession {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            INSERT INTO \(DatabaseSchema.ScheduledSessions.tableName)
+                (\(DatabaseSchema.ScheduledSessions.skillGoalId),
+                 \(DatabaseSchema.ScheduledSessions.scheduledStart),
+                 \(DatabaseSchema.ScheduledSessions.scheduledEnd),
+                 \(DatabaseSchema.ScheduledSessions.calendarEventId),
+                 \(DatabaseSchema.ScheduledSessions.completed),
+                 \(DatabaseSchema.ScheduledSessions.completedAt),
+                 \(DatabaseSchema.ScheduledSessions.createdAt))
+            VALUES (?, ?, ?, ?, ?, ?, ?);
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.insertFailed(errmsg(db))
+            }
+
+            if let goalId = session.skillGoalId {
+                sqlite3_bind_int64(stmt, 1, goalId)
+            } else {
+                sqlite3_bind_null(stmt, 1)
+            }
+            bind(stmt, 2, iso8601(session.scheduledStart))
+            bind(stmt, 3, iso8601(session.scheduledEnd))
+            bind(stmt, 4, session.calendarEventId)
+            sqlite3_bind_int64(stmt, 5, session.completed ? 1 : 0)
+            bind(stmt, 6, session.completedAt.map { iso8601($0) })
+            bind(stmt, 7, iso8601(session.createdAt))
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.insertFailed(errmsg(db))
+            }
+
+            var saved = session
+            saved.id = sqlite3_last_insert_rowid(db)
+            return saved
+        }
+    }
+
+    /// Returns all ScheduledSessions for the given skill goal, ordered by scheduled start time.
+    func fetchScheduledSessions(skillGoalId: Int64) throws -> [ScheduledSession] {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            SELECT \(DatabaseSchema.ScheduledSessions.id),
+                   \(DatabaseSchema.ScheduledSessions.skillGoalId),
+                   \(DatabaseSchema.ScheduledSessions.scheduledStart),
+                   \(DatabaseSchema.ScheduledSessions.scheduledEnd),
+                   \(DatabaseSchema.ScheduledSessions.calendarEventId),
+                   \(DatabaseSchema.ScheduledSessions.completed),
+                   \(DatabaseSchema.ScheduledSessions.completedAt),
+                   \(DatabaseSchema.ScheduledSessions.createdAt)
+            FROM \(DatabaseSchema.ScheduledSessions.tableName)
+            WHERE \(DatabaseSchema.ScheduledSessions.skillGoalId) = ?
+            ORDER BY \(DatabaseSchema.ScheduledSessions.scheduledStart) ASC;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.queryFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, skillGoalId)
+
+            var results: [ScheduledSession] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                results.append(rowToScheduledSession(stmt))
+            }
+            return results
+        }
+    }
+
+    /// Marks a ScheduledSession as completed.
+    func markScheduledSessionCompleted(id: Int64) throws {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            UPDATE \(DatabaseSchema.ScheduledSessions.tableName)
+            SET \(DatabaseSchema.ScheduledSessions.completed)   = 1,
+                \(DatabaseSchema.ScheduledSessions.completedAt) = ?
+            WHERE \(DatabaseSchema.ScheduledSessions.id) = ?;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.updateFailed(errmsg(db))
+            }
+
+            bind(stmt, 1, iso8601(Date()))
+            sqlite3_bind_int64(stmt, 2, id)
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.updateFailed(errmsg(db))
+            }
+        }
+    }
+
+    /// Deletes a ScheduledSession by its primary key.
+    func deleteScheduledSession(id: Int64) throws {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            DELETE FROM \(DatabaseSchema.ScheduledSessions.tableName)
+            WHERE \(DatabaseSchema.ScheduledSessions.id) = ?;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.deleteFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, id)
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.deleteFailed(errmsg(db))
+            }
+        }
+    }
+
+    // MARK: - ScheduledSession row mapper
+
+    private func rowToScheduledSession(_ stmt: OpaquePointer?) -> ScheduledSession {
+        let id              = sqlite3_column_int64(stmt, 0)
+        let goalId: Int64?  = sqlite3_column_type(stmt, 1) != SQLITE_NULL
+                                ? sqlite3_column_int64(stmt, 1) : nil
+        let startStr        = string(stmt, 2) ?? ""
+        let endStr          = string(stmt, 3) ?? ""
+        let calEventId      = string(stmt, 4)
+        let completed       = sqlite3_column_int64(stmt, 5) != 0
+        let completedAtStr  = string(stmt, 6)
+        let createdStr      = string(stmt, 7) ?? ""
+
+        return ScheduledSession(
+            id: id,
+            skillGoalId: goalId,
+            scheduledStart: parseISO8601(startStr) ?? Date(),
+            scheduledEnd: parseISO8601(endStr) ?? Date(),
+            calendarEventId: calEventId,
+            completed: completed,
+            completedAt: completedAtStr.flatMap { parseISO8601($0) },
+            createdAt: parseISO8601(createdStr) ?? Date()
         )
     }
 }
