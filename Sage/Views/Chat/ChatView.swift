@@ -64,14 +64,11 @@ struct ChatView: View {
                             .padding(.top, 60)
                     }
 
-                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { _, message in
                         MessageBubble(
                             message: message,
                             isFailed: message.id == viewModel.failedUserMessageId,
-                            isLastAssistantMessage: message.role == .assistant
-                                && index == viewModel.messages.count - 1,
                             onDelete: { Task { await viewModel.deleteMessage(message) } },
-                            onRegenerate: { Task { await viewModel.regenerateResponse() } },
                             onRetry: { Task { await viewModel.retryLastFailedMessage() } }
                         )
                         .id(message.id)

@@ -155,26 +155,6 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Removes the last assistant message and re-streams a fresh response from Claude.
-    func regenerateResponse() async {
-        guard !isLoading else { return }
-        guard let convId = conversation?.id else { return }
-
-        // Remove the last assistant message if present.
-        if messages.last?.role == .assistant {
-            let last = messages.removeLast()
-            if let id = last.id { try? db.deleteMessage(id: id) }
-        }
-
-        guard !messages.isEmpty else { return }
-
-        isLoading = true
-        defer { isLoading = false }
-        errorMessage = nil
-
-        await streamAssistantReply(convId: convId)
-    }
-
     /// Retries sending after a failure. Clears the failed state and re-streams a response
     /// for the existing user message (which was already persisted).
     func retryLastFailedMessage() async {

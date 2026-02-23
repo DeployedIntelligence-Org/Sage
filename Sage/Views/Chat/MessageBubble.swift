@@ -12,9 +12,7 @@ struct MessageBubble: View {
 
     let message: Message
     var isFailed: Bool = false
-    var isLastAssistantMessage: Bool = false
     var onDelete: () -> Void = {}
-    var onRegenerate: () -> Void = {}
     var onRetry: () -> Void = {}
 
     private var isUser: Bool { message.role.isUser }
@@ -95,12 +93,6 @@ struct MessageBubble: View {
             Label("Share", systemImage: "square.and.arrow.up")
         }
 
-        if isLastAssistantMessage {
-            Button(action: onRegenerate) {
-                Label("Regenerate", systemImage: "arrow.clockwise")
-            }
-        }
-
         Divider()
 
         Button(role: .destructive, action: onDelete) {
@@ -155,7 +147,6 @@ struct MessageBubble: View {
                     - Record yourself to track progress
                     """
                 ),
-                isLastAssistantMessage: true
             )
             MessageBubble(
                 message: Message(
