@@ -20,6 +20,10 @@
     <string>1</string>
     <key>AnthropicAPIKey</key>
     <string>$(ANTHROPIC_API_KEY)</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Sage reads your calendar to find free time slots for practice sessions.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Sage reads your calendar to find free time slots and schedule practice sessions.</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UIApplicationSceneManifest</key>

@@ -18,6 +18,11 @@ struct HomeView: View {
             .tabItem { Label("Practice", systemImage: "figure.run") }
 
             NavigationStack {
+                CalendarView()
+            }
+            .tabItem { Label("Schedule", systemImage: "calendar") }
+
+            NavigationStack {
                 chatTab
             }
             .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
