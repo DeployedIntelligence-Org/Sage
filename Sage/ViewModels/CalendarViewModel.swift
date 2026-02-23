@@ -12,6 +12,18 @@ final class CalendarViewModel: ObservableObject {
     @Published var freeSlots: [DateInterval] = []
     @Published var isLoading = false
 
+    /// Set to a slot to present the scheduling sheet.
+    @Published var slotToSchedule: DateInterval? = nil
+
+    /// The most recently saved ScheduledSession (used to confirm success).
+    @Published var lastScheduled: ScheduledSession? = nil
+
+    /// Non-nil when scheduling fails.
+    @Published var schedulingError: String? = nil
+
+    /// The user's active skill goal (loaded once on first authorized appear).
+    @Published var skillGoal: SkillGoal? = nil
+
     // MARK: - Constants
 
     let durationOptions: [(label: String, value: TimeInterval)] = [
@@ -24,6 +36,7 @@ final class CalendarViewModel: ObservableObject {
     // MARK: - Private
 
     private let calendarService = CalendarService.shared
+    private let db = DatabaseService.shared
 
     // MARK: - Authorization helpers
 
@@ -33,15 +46,24 @@ final class CalendarViewModel: ObservableObject {
         authorizationStatus == .denied || authorizationStatus == .restricted
     }
 
-    // MARK: - Actions
+    // MARK: - Skill goal
+
+    func loadSkillGoal() {
+        skillGoal = try? db.fetchAll().first
+    }
+
+    // MARK: - Authorization
 
     func requestAccess() async {
         _ = await calendarService.requestAccess()
         authorizationStatus = EKEventStore.authorizationStatus(for: .event)
         if calendarService.isAuthorized {
+            loadSkillGoal()
             await loadFreeSlots()
         }
     }
+
+    // MARK: - Free slots
 
     func loadFreeSlots() async {
         guard isAuthorized else { return }
@@ -58,6 +80,45 @@ final class CalendarViewModel: ObservableObject {
     func select(duration: TimeInterval) async {
         selectedDuration = duration
         await loadFreeSlots()
+    }
+
+    // MARK: - Session scheduling
+
+    /// Creates a calendar event and persists a `ScheduledSession` to the database.
+    ///
+    /// On success, sets `lastScheduled`, refreshes free slots, and returns `true`.
+    /// On failure, sets `schedulingError` and returns `false`.
+    func scheduleSession(in slot: DateInterval) async -> Bool {
+        guard let goal = skillGoal else {
+            schedulingError = "No active skill goal found."
+            return false
+        }
+
+        let sessionEnd = slot.start.addingTimeInterval(selectedDuration)
+        let eventId = calendarService.scheduleSession(
+            skillName: goal.skillName,
+            startTime: slot.start,
+            duration: selectedDuration
+        )
+
+        let session = ScheduledSession(
+            skillGoalId: goal.id,
+            scheduledStart: slot.start,
+            scheduledEnd: sessionEnd,
+            calendarEventId: eventId
+        )
+
+        do {
+            let saved = try db.insert(session)
+            lastScheduled = saved
+            schedulingError = nil
+            // Refresh free slots — the booked time is now busy.
+            await loadFreeSlots()
+            return true
+        } catch {
+            schedulingError = "Failed to save session: \(error.localizedDescription)"
+            return false
+        }
     }
 
     // MARK: - Week strip

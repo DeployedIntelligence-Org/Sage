@@ -100,6 +100,30 @@ final class CalendarService {
         return freeSlots
     }
 
+    // MARK: - Session scheduling
+
+    /// Creates an EKEvent for a practice session and saves it to the user's default calendar.
+    ///
+    /// - Returns: The `eventIdentifier` of the saved event, or `nil` if the save failed.
+    @discardableResult
+    func scheduleSession(skillName: String, startTime: Date, duration: TimeInterval) -> String? {
+        guard isAuthorized else { return nil }
+
+        let event = EKEvent(eventStore: eventStore)
+        event.title     = "Practice \(skillName)"
+        event.startDate = startTime
+        event.endDate   = startTime.addingTimeInterval(duration)
+        event.calendar  = eventStore.defaultCalendarForNewEvents
+        event.notes     = "Scheduled by Sage"
+
+        do {
+            try eventStore.save(event, span: .thisEvent)
+            return event.eventIdentifier
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - Helpers
 
     /// Merges a sorted array of potentially-overlapping intervals into non-overlapping ones.

@@ -24,7 +24,16 @@ struct CalendarView: View {
             // Re-read status each time the view appears (user may have changed it in Settings).
             viewModel.authorizationStatus = EKEventStore.authorizationStatus(for: .event)
             if viewModel.isAuthorized {
+                viewModel.loadSkillGoal()
                 await viewModel.loadFreeSlots()
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { viewModel.slotToSchedule != nil },
+            set: { if !$0 { viewModel.slotToSchedule = nil } }
+        )) {
+            if let slot = viewModel.slotToSchedule {
+                ScheduleSessionView(slot: slot, viewModel: viewModel)
             }
         }
     }

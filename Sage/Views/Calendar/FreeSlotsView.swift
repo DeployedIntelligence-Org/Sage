@@ -90,6 +90,8 @@ struct FreeSlotsView: View {
             Section {
                 ForEach(viewModel.freeSlots, id: \.start) { slot in
                     FreeSlotRow(slot: slot, sessionDuration: viewModel.selectedDuration)
+                        .contentShape(Rectangle())
+                        .onTapGesture { viewModel.slotToSchedule = slot }
                 }
             } header: {
                 Text(viewModel.selectedDate.formatted(.dateTime.weekday(.wide).month().day()))
@@ -152,6 +154,10 @@ private struct FreeSlotRow: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color(.systemGray3))
         }
         .padding(.vertical, 6)
     }
