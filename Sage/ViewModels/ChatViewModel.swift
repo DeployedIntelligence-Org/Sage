@@ -226,7 +226,8 @@ final class ChatViewModel: ObservableObject {
             }
 
             if conversation?.title == nil, let firstUser = messages.first(where: { $0.role.isUser }) {
-                await generateTitle(for: convId, firstUserMessage: firstUser.content)
+                // Fire-and-forget: title generation must not hold isLoading true.
+                Task { await self.generateTitle(for: convId, firstUserMessage: firstUser.content) }
             }
         } catch {
             if messages.last?.role == .assistant {
