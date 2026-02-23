@@ -71,6 +71,9 @@ final class ClaudeService {
         static let defaultModel = "claude-opus-4-6"
         static let maxTokens   = 1024
         static let timeoutInterval: TimeInterval = 30
+        /// Generous timeout for streaming responses: `claude-opus-4-6` generating 2 048 tokens
+        /// can take well over 30 s on a mobile connection, so we allow 5 minutes before giving up.
+        static let streamingTimeoutInterval: TimeInterval = 300
         static let maxRetries  = 1
     }
 
@@ -178,7 +181,7 @@ final class ClaudeService {
         maxTokens: Int = 2048
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     let apiKey = try fetchAPIKey()
 
@@ -197,15 +200,14 @@ final class ClaudeService {
                         stream: true
                     )
 
-                    let urlRequest = try buildURLRequest(claudeRequest, apiKey: apiKey)
+                    let urlRequest = try buildURLRequest(claudeRequest, apiKey: apiKey,
+                                                        timeout: Constant.streamingTimeoutInterval)
 
                     for try await line in bytesSession.lines(for: urlRequest) {
-                        // SSE lines have the form: "data: {json}" or "data: [DONE]"
-                        // Blank lines are heartbeats — skip them.
+                        // SSE lines have the form: "data: {json}" or blank (heartbeat).
                         guard line.hasPrefix("data: ") else { continue }
 
                         let jsonString = String(line.dropFirst(6)) // drop "data: "
-                        if jsonString == "[DONE]" { break }
 
                         guard let data = jsonString.data(using: .utf8) else { continue }
 
@@ -216,6 +218,11 @@ final class ClaudeService {
                             // Skip unparseable events (e.g. ping, message_start without delta)
                             continue
                         }
+
+                        // Anthropic signals end-of-response with message_stop.
+                        // Break immediately rather than waiting for the TCP connection to close,
+                        // which can hang indefinitely on some iOS/network configurations.
+                        if event.type == "message_stop" { break }
 
                         if event.type == "content_block_delta",
                            event.delta?.type == "text_delta",
@@ -230,6 +237,8 @@ final class ClaudeService {
                     continuation.finish(throwing: error)
                 }
             }
+            // Cancel the backing Task if the consumer exits early (view disappears, etc.)
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
@@ -289,12 +298,16 @@ final class ClaudeService {
         }
     }
 
-    private func buildURLRequest(_ request: ClaudeRequest, apiKey: String) throws -> URLRequest {
+    private func buildURLRequest(
+        _ request: ClaudeRequest,
+        apiKey: String,
+        timeout: TimeInterval = Constant.timeoutInterval
+    ) throws -> URLRequest {
         guard let url = URL(string: Constant.baseURL) else {
             throw NetworkError.unexpectedResponse("Invalid base URL")
         }
 
-        var urlRequest = URLRequest(url: url, timeoutInterval: Constant.timeoutInterval)
+        var urlRequest = URLRequest(url: url, timeoutInterval: timeout)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue(apiKey, forHTTPHeaderField: "x-api-key")
