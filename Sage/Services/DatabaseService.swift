@@ -270,6 +270,10 @@ final class DatabaseService {
             try Migration_v4.run(db: db)
             setUserVersion(4)
         }
+        if currentVersion < 5 {
+            try Migration_v5.run(db: db)
+            setUserVersion(5)
+        }
     }
 
     private func userVersion() -> Int {
@@ -644,8 +648,9 @@ final class DatabaseService {
                  \(DatabaseSchema.PracticeSessions.durationMinutes),
                  \(DatabaseSchema.PracticeSessions.notes),
                  \(DatabaseSchema.PracticeSessions.metricEntries),
+                 \(DatabaseSchema.PracticeSessions.rating),
                  \(DatabaseSchema.PracticeSessions.createdAt))
-            VALUES (?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?);
             """
 
             var stmt: OpaquePointer?
@@ -663,7 +668,12 @@ final class DatabaseService {
             sqlite3_bind_int64(stmt, 2, Int64(session.durationMinutes))
             bind(stmt, 3, session.notes)
             bind(stmt, 4, entriesJSON)
-            bind(stmt, 5, iso8601(session.createdAt))
+            if let rating = session.rating {
+                sqlite3_bind_int64(stmt, 5, Int64(rating))
+            } else {
+                sqlite3_bind_null(stmt, 5)
+            }
+            bind(stmt, 6, iso8601(session.createdAt))
 
             guard sqlite3_step(stmt) == SQLITE_DONE else {
                 throw DatabaseError.insertFailed(errmsg(db))
@@ -686,6 +696,7 @@ final class DatabaseService {
                    \(DatabaseSchema.PracticeSessions.durationMinutes),
                    \(DatabaseSchema.PracticeSessions.notes),
                    \(DatabaseSchema.PracticeSessions.metricEntries),
+                   \(DatabaseSchema.PracticeSessions.rating),
                    \(DatabaseSchema.PracticeSessions.createdAt)
             FROM \(DatabaseSchema.PracticeSessions.tableName)
             WHERE \(DatabaseSchema.PracticeSessions.skillGoalId) = ?
@@ -706,6 +717,37 @@ final class DatabaseService {
                 results.append(try rowToPracticeSession(stmt))
             }
             return results
+        }
+    }
+
+    /// Updates the `rating` and optional `notes` of an existing PracticeSession.
+    ///
+    /// Called from `PostSessionFeedbackView` after the user submits their check-in.
+    func updatePracticeSessionRating(id: Int64, rating: Int, notes: String?) throws {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            UPDATE \(DatabaseSchema.PracticeSessions.tableName)
+            SET \(DatabaseSchema.PracticeSessions.rating) = ?,
+                \(DatabaseSchema.PracticeSessions.notes)  = ?
+            WHERE \(DatabaseSchema.PracticeSessions.id) = ?;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.updateFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, Int64(rating))
+            bind(stmt, 2, notes)
+            sqlite3_bind_int64(stmt, 3, id)
+
+            guard sqlite3_step(stmt) == SQLITE_DONE else {
+                throw DatabaseError.updateFailed(errmsg(db))
+            }
         }
     }
 
@@ -780,7 +822,10 @@ final class DatabaseService {
         let duration       = Int(sqlite3_column_int64(stmt, 2))
         let notes          = string(stmt, 3)
         let entriesJSON    = string(stmt, 4) ?? "[]"
-        let createdStr     = string(stmt, 5) ?? ""
+        let rating: Int?   = sqlite3_column_type(stmt, 5) != SQLITE_NULL
+                                ? Int(sqlite3_column_int64(stmt, 5))
+                                : nil
+        let createdStr     = string(stmt, 6) ?? ""
 
         let entries = try PracticeSession.decodeMetricEntries(from: entriesJSON)
         let createdAt = parseISO8601(createdStr) ?? Date()
@@ -791,6 +836,7 @@ final class DatabaseService {
             durationMinutes: duration,
             notes: notes,
             metricEntries: entries,
+            rating: rating,
             createdAt: createdAt
         )
     }
@@ -905,6 +951,81 @@ final class DatabaseService {
             guard sqlite3_step(stmt) == SQLITE_DONE else {
                 throw DatabaseError.updateFailed(errmsg(db))
             }
+        }
+    }
+
+    /// Returns the ScheduledSession with the given `id`, or throws `DatabaseError.notFound`.
+    func fetchScheduledSession(id: Int64) throws -> ScheduledSession {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let sql = """
+            SELECT \(DatabaseSchema.ScheduledSessions.id),
+                   \(DatabaseSchema.ScheduledSessions.skillGoalId),
+                   \(DatabaseSchema.ScheduledSessions.scheduledStart),
+                   \(DatabaseSchema.ScheduledSessions.scheduledEnd),
+                   \(DatabaseSchema.ScheduledSessions.calendarEventId),
+                   \(DatabaseSchema.ScheduledSessions.completed),
+                   \(DatabaseSchema.ScheduledSessions.completedAt),
+                   \(DatabaseSchema.ScheduledSessions.createdAt)
+            FROM \(DatabaseSchema.ScheduledSessions.tableName)
+            WHERE \(DatabaseSchema.ScheduledSessions.id) = ?;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.queryFailed(errmsg(db))
+            }
+
+            sqlite3_bind_int64(stmt, 1, id)
+
+            guard sqlite3_step(stmt) == SQLITE_ROW else {
+                throw DatabaseError.notFound
+            }
+
+            return rowToScheduledSession(stmt)
+        }
+    }
+
+    /// Returns all ScheduledSessions whose `scheduled_end` is in the past and `completed = 0`.
+    ///
+    /// Used to surface pending check-in prompts in the UI.
+    func fetchPendingScheduledSessions() throws -> [ScheduledSession] {
+        try queue.sync {
+            guard let db else { throw DatabaseError.connectionFailed("Database not open") }
+
+            let nowString = iso8601(Date())
+            let sql = """
+            SELECT \(DatabaseSchema.ScheduledSessions.id),
+                   \(DatabaseSchema.ScheduledSessions.skillGoalId),
+                   \(DatabaseSchema.ScheduledSessions.scheduledStart),
+                   \(DatabaseSchema.ScheduledSessions.scheduledEnd),
+                   \(DatabaseSchema.ScheduledSessions.calendarEventId),
+                   \(DatabaseSchema.ScheduledSessions.completed),
+                   \(DatabaseSchema.ScheduledSessions.completedAt),
+                   \(DatabaseSchema.ScheduledSessions.createdAt)
+            FROM \(DatabaseSchema.ScheduledSessions.tableName)
+            WHERE \(DatabaseSchema.ScheduledSessions.completed) = 0
+              AND \(DatabaseSchema.ScheduledSessions.scheduledEnd) < ?
+            ORDER BY \(DatabaseSchema.ScheduledSessions.scheduledEnd) DESC;
+            """
+
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+                throw DatabaseError.queryFailed(errmsg(db))
+            }
+
+            bind(stmt, 1, nowString)
+
+            var results: [ScheduledSession] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                results.append(rowToScheduledSession(stmt))
+            }
+            return results
         }
     }
 

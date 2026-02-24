@@ -28,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		318893562F4D0F72007F3217 /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
 		31BB9F882F4513510074C65F /* Sage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9F952F4513540074C65F /* SageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9F9F2F4513540074C65F /* SageUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -94,6 +95,11 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		318893582F4D0F72007F3217 /* Products */ = {
+			isa = PBXGroup;
+			name = Products;
+			sourceTree = "<group>";
+		};
 		31BB9F7F2F4513510074C65F = {
 			isa = PBXGroup;
 			children = (
@@ -245,6 +251,10 @@
 			productRefGroup = 31BB9F892F4513510074C65F /* Products */;
 			projectDirPath = "";
 			projectReferences = (
+				{
+					ProductGroup = 318893582F4D0F72007F3217 /* Products */;
+					ProjectRef = 318893562F4D0F72007F3217 /* Sage.xcodeproj */;
+				},
 				{
 					ProductGroup = 31BBAD2D2F4570C70074C65F /* Products */;
 					ProjectRef = 31BBAD2B2F4570C70074C65F /* Sage.xcodeproj */;

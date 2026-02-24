@@ -1,12 +1,27 @@
 import SwiftUI
 
 /// Root tab container shown after onboarding is complete.
+///
+/// Observes `NotificationService.shared.recentlyLoggedSessionId`:
+/// when a session is quick-logged from the notification banner the app
+/// automatically switches to the Chat tab so the user can debrief with Sage.
 struct HomeView: View {
 
+    // Tab indices — keep in sync with the TabView content order below.
+    private enum Tab: Int {
+        case practice = 0
+        case schedule = 1
+        case chat     = 2
+        case insights = 3
+    }
+
+    @State private var selectedTab: Int = Tab.practice.rawValue
     @State private var skillGoal: SkillGoal? = nil
 
+    @ObservedObject private var notificationService = NotificationService.shared
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
                 placeholderTab(
                     icon: "figure.run",
@@ -16,16 +31,19 @@ struct HomeView: View {
                 .navigationTitle("Practice")
             }
             .tabItem { Label("Practice", systemImage: "figure.run") }
+            .tag(Tab.practice.rawValue)
 
             NavigationStack {
                 CalendarView()
             }
             .tabItem { Label("Schedule", systemImage: "calendar") }
+            .tag(Tab.schedule.rawValue)
 
             NavigationStack {
                 chatTab
             }
             .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
+            .tag(Tab.chat.rawValue)
 
             NavigationStack {
                 placeholderTab(
@@ -36,8 +54,16 @@ struct HomeView: View {
                 .navigationTitle("Insights")
             }
             .tabItem { Label("Insights", systemImage: "chart.line.uptrend.xyaxis") }
+            .tag(Tab.insights.rawValue)
         }
         .task { loadSkillGoal() }
+        // After a quick-star rating from the notification, jump to Chat so Sage can follow up.
+        .onChange(of: notificationService.recentlyLoggedSessionId) { _, sessionId in
+            guard sessionId != nil else { return }
+            withAnimation { selectedTab = Tab.chat.rawValue }
+            // Consume the signal so repeated changes don't re-fire.
+            notificationService.recentlyLoggedSessionId = nil
+        }
     }
 
     // MARK: - Chat tab

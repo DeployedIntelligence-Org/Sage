@@ -6,6 +6,9 @@ struct SageApp: App {
     init() {
         openDatabase()
         seedAPIKeyFromConfig()
+        // Register NotificationService as UNUserNotificationCenterDelegate before
+        // the app finishes launching so cold-start notification taps are handled.
+        _ = NotificationService.shared
     }
 
     var body: some Scene {
