@@ -90,11 +90,12 @@ enum PromptTemplates {
             let lines = recentSessions.prefix(5).map { session -> String in
                 let dateStr = Self.shortDate(session.createdAt)
                 let duration = session.durationMinutes > 0 ? "\(session.durationMinutes) min" : nil
+                let ratingLine = session.rating.map { "Rating: \($0)/5" }
                 let metricLine = session.metricEntries.isEmpty ? nil :
                     session.metricEntries.map { "\($0.metricName): \(formatNumber($0.value)) \($0.unit)" }.joined(separator: ", ")
                 let notesLine = session.notes.map { "Notes: \($0)" }
 
-                let parts = [duration, metricLine, notesLine].compactMap { $0 }
+                let parts = [duration, ratingLine, metricLine, notesLine].compactMap { $0 }
                 let detail = parts.isEmpty ? "" : " — \(parts.joined(separator: "; "))"
                 return "- \(dateStr)\(detail)"
             }

@@ -2,7 +2,7 @@ import Foundation
 
 /// A single practice session logged by the user.
 ///
-/// Maps to the `practice_sessions` table (schema v3).
+/// Maps to the `practice_sessions` table (schema v5).
 struct PracticeSession: Identifiable, Equatable {
     var id: Int64?
     var skillGoalId: Int64?
@@ -10,6 +10,8 @@ struct PracticeSession: Identifiable, Equatable {
     var notes: String?
     /// Recorded values for each of the user's tracked metrics.
     var metricEntries: [MetricEntry]
+    /// Star rating from the post-session check-in (1–5). Nil if not yet rated.
+    var rating: Int?
     var createdAt: Date
 
     init(
@@ -18,6 +20,7 @@ struct PracticeSession: Identifiable, Equatable {
         durationMinutes: Int = 0,
         notes: String? = nil,
         metricEntries: [MetricEntry] = [],
+        rating: Int? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -25,6 +28,7 @@ struct PracticeSession: Identifiable, Equatable {
         self.durationMinutes = durationMinutes
         self.notes = notes
         self.metricEntries = metricEntries
+        self.rating = rating
         self.createdAt = createdAt
     }
 

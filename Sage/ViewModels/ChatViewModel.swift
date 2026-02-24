@@ -182,11 +182,21 @@ final class ChatViewModel: ObservableObject {
         messages.append(assistantMsg)
 
         do {
+            // Load recent sessions so Claude has full context about recent practice.
+            // Failures are non-fatal — coaching still works without history.
+            let recentSessions: [PracticeSession]
+            if let goalId = skillGoal.id {
+                recentSessions = (try? db.fetchPracticeSessions(skillGoalId: goalId)) ?? []
+            } else {
+                recentSessions = []
+            }
+
             let systemPrompt = PromptTemplates.coachSystem(
                 skillName: skillGoal.skillName,
                 currentLevel: skillGoal.currentLevel,
                 targetLevel: skillGoal.targetLevel,
-                metrics: skillGoal.customMetrics
+                metrics: skillGoal.customMetrics,
+                recentSessions: recentSessions
             )
 
             let historyForStream = messages.dropLast() // exclude the empty placeholder
