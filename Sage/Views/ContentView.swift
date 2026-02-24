@@ -32,6 +32,11 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: onboardingComplete)
+        .task {
+            if !onboardingComplete {
+                onboardingComplete = (try? DatabaseService.shared.fetchAll().first) != nil
+            }
+        }
     }
 }
 
