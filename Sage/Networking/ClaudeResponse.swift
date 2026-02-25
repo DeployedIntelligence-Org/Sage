@@ -81,10 +81,18 @@ struct SSEEvent: Decodable {
     let message: SSEMessageStart?
 }
 
-/// The `delta` field present in `content_block_delta` events.
+/// The `delta` field present in `content_block_delta` and `message_delta` events.
 struct SSEDelta: Decodable {
-    let type: String
+    let type: String?
     let text: String?
+    /// Present on `message_delta` events when the provider signals completion.
+    let stopReason: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case text
+        case stopReason = "stop_reason"
+    }
 }
 
 /// The `message` field present in `message_start` events (carries usage).

@@ -19,7 +19,7 @@ protocol URLSessionBytesTasking {
 extension URLSession: URLSessionBytesTasking {
     func lines(for request: URLRequest) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            let task = Task {
+            let task = Task.detached {
                 do {
                     let (asyncBytes, response) = try await self.bytes(for: request)
                     guard let http = response as? HTTPURLResponse else {
@@ -44,19 +44,12 @@ extension URLSession: URLSessionBytesTasking {
                     continuation.finish(throwing: error)
                 }
             }
-            continuation.onTermination = { _ in task.cancel() }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
         }
     }
 }
 
 /// URLSession-based client for the Anthropic Claude Messages API.
-///
-/// Responsibilities:
-/// - Fetches the API key from KeychainService before every request.
-/// - Serialises `ClaudeRequest` to JSON and deserialises `ClaudeResponse`.
-/// - Maps HTTP/network failures to typed `NetworkError` values.
-/// - Retries once on transient failures (5xx, timeout) with exponential back-off.
-/// - Supports streaming via `streamConversation()` using SSE / `URLSession.bytes(for:)`.
 final class ClaudeService {
 
     // MARK: - Singleton
@@ -71,8 +64,7 @@ final class ClaudeService {
         static let defaultModel = "claude-opus-4-6"
         static let maxTokens   = 1024
         static let timeoutInterval: TimeInterval = 30
-        /// Generous timeout for streaming responses: `claude-opus-4-6` generating 2 048 tokens
-        /// can take well over 30 s on a mobile connection, so we allow 5 minutes before giving up.
+        /// Generous timeout for streaming responses.
         static let streamingTimeoutInterval: TimeInterval = 300
         static let maxRetries  = 1
     }
@@ -101,15 +93,6 @@ final class ClaudeService {
 
     // MARK: - Public API
 
-    /// Sends a single user message to Claude and returns the full response.
-    ///
-    /// - Parameters:
-    ///   - userMessage: The user's prompt text.
-    ///   - systemPrompt: Optional system context prepended to the conversation.
-    ///   - model: The Claude model to use. Defaults to `claude-opus-4-6`.
-    ///   - maxTokens: Maximum tokens in the response.
-    /// - Returns: The decoded `ClaudeResponse`.
-    /// - Throws: `NetworkError` for all failure cases.
     func send(
         userMessage: String,
         systemPrompt: String? = nil,
@@ -128,15 +111,6 @@ final class ClaudeService {
         return try await perform(request, apiKey: apiKey, attempt: 0)
     }
 
-    /// Sends a full conversation history to Claude and returns the assistant's next reply.
-    ///
-    /// Use this for multi-turn chat where prior messages must be included.
-    ///
-    /// - Parameters:
-    ///   - messages: Ordered list of prior turns (user + assistant), followed by the new user turn.
-    ///   - systemPrompt: Optional system context.
-    ///   - model: The Claude model to use. Defaults to `claude-opus-4-6`.
-    ///   - maxTokens: Maximum tokens in the response.
     func sendConversation(
         messages: [Message],
         systemPrompt: String? = nil,
@@ -163,27 +137,16 @@ final class ClaudeService {
     }
 
     /// Streams a full conversation history to Claude, yielding incremental text chunks.
-    ///
-    /// The returned `AsyncThrowingStream` emits each `text_delta` chunk as it arrives
-    /// from the server-sent event stream. Callers should append chunks to an in-progress
-    /// message so the UI updates token-by-token.
-    ///
-    /// - Parameters:
-    ///   - messages: Full conversation history ending with the new user turn.
-    ///   - systemPrompt: Optional system context.
-    ///   - model: The Claude model to use.
-    ///   - maxTokens: Maximum tokens in the response.
-    /// - Returns: An `AsyncThrowingStream` of text chunk strings.
     func streamConversation(
         messages: [Message],
         systemPrompt: String? = nil,
         model: String = Constant.defaultModel,
         maxTokens: Int = 2048
     ) -> AsyncThrowingStream<String, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
+        AsyncThrowingStream(String.self) { continuation in
+            Task.detached {
                 do {
-                    let apiKey = try fetchAPIKey()
+                    let apiKey = try self.fetchAPIKey()
 
                     let claudeMessages = messages.map { msg in
                         ClaudeMessage(
@@ -200,30 +163,50 @@ final class ClaudeService {
                         stream: true
                     )
 
-                    let urlRequest = try buildURLRequest(claudeRequest, apiKey: apiKey,
-                                                        timeout: Constant.streamingTimeoutInterval)
+                    let urlRequest = try self.buildURLRequest(
+                        claudeRequest,
+                        apiKey: apiKey,
+                        timeout: Constant.streamingTimeoutInterval
+                    )
 
-                    for try await line in bytesSession.lines(for: urlRequest) {
-                        // SSE lines have the form: "data: {json}" or blank (heartbeat).
-                        guard line.hasPrefix("data: ") else { continue }
+                    for try await line in self.bytesSession.lines(for: urlRequest) {
+                        try Task.checkCancellation()
+                        
+                        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                        let jsonString = String(line.dropFirst(6)) // drop "data: "
+                        // Terminal sentinel ([DONE])
+                        if trimmed == "data: [DONE]" {
+                            break
+                        }
 
-                        guard let data = jsonString.data(using: .utf8) else { continue }
-
-                        let event: SSEEvent
-                        do {
-                            event = try decoder.decode(SSEEvent.self, from: data)
-                        } catch {
-                            // Skip unparseable events (e.g. ping, message_start without delta)
+                        // Skip non-data lines (e.g., "event: ...") and blanks.
+                        guard trimmed.hasPrefix("data: ") else {
                             continue
                         }
 
-                        // Anthropic signals end-of-response with message_stop.
-                        // Break immediately rather than waiting for the TCP connection to close,
-                        // which can hang indefinitely on some iOS/network configurations.
-                        if event.type == "message_stop" { break }
+                        let jsonString = String(trimmed.dropFirst(6)) // drop "data: "
+                        guard let data = jsonString.data(using: .utf8) else {
+                            continue
+                        }
 
+                        let event: SSEEvent
+                        do {
+                            event = try self.decoder.decode(SSEEvent.self, from: data)
+                        } catch {
+                            continue
+                        }
+
+                        // Terminal conditions
+                        if event.type == "message_stop" || event.type == "content_block_stop" {
+                            break
+                        }
+                        if event.type == "message_delta",
+                           let stop = event.delta?.stopReason,
+                           !stop.isEmpty {
+                            break
+                        }
+
+                        // Yield text deltas
                         if event.type == "content_block_delta",
                            event.delta?.type == "text_delta",
                            let chunk = event.delta?.text,
@@ -231,14 +214,14 @@ final class ClaudeService {
                             continuation.yield(chunk)
                         }
                     }
-
+                    
+                    continuation.finish()
+                } catch is CancellationError {
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
                 }
             }
-            // Cancel the backing Task if the consumer exits early (view disappears, etc.)
-            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
@@ -334,7 +317,6 @@ final class ClaudeService {
         ClaudeService.mapURLError(error)
     }
 
-    /// Maps a `URLError` to a typed `NetworkError`. `static` so it can be called from extensions.
     static func mapURLError(_ error: URLError) -> NetworkError {
         switch error.code {
         case .notConnectedToInternet, .networkConnectionLost:
@@ -346,8 +328,6 @@ final class ClaudeService {
         }
     }
 
-    /// Maps an HTTP status code + raw body string to a typed `NetworkError`.
-    /// `static` so it can be called from the `URLSessionBytesTasking` extension on `URLSession`.
     static func mapHTTPError(statusCode: Int, body: String) -> NetworkError {
         switch statusCode {
         case 401:
@@ -355,7 +335,6 @@ final class ClaudeService {
         case 429:
             return .rateLimited(retryAfter: nil)
         default:
-            // Try to extract a message from the error body.
             let message = (try? JSONDecoder().decode(ClaudeAPIError.self, from: Data(body.utf8)))?.error.message
             return .httpError(statusCode: statusCode, message: message)
         }
