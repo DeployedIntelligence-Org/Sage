@@ -11,6 +11,10 @@ final class OnboardingUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        
+        // Reset app state to ensure onboarding shows for each test
+        app.launchArguments = ["--reset-for-testing"]
+        
         app.launch()
     }
 
@@ -138,6 +142,42 @@ final class OnboardingUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["You're all set!"].waitForExistence(timeout: 3),
             "Completion screen should appear after finishing onboarding"
+        )
+    }
+
+    func testReturningUserSkipsOnboarding() {
+        // Complete onboarding first
+        enterSkillName("Guitar")
+        app.buttons["Next"].tap()
+        selectCurrentLevel("Beginner")
+        selectTargetLevel("Advanced")
+        app.buttons["Next"].tap()
+        app.buttons["Finish"].tap()
+        
+        // Wait for home view to appear
+        XCTAssertTrue(
+            app.staticTexts["You're all set!"].waitForExistence(timeout: 3),
+            "Should see completion message"
+        )
+        
+        // Terminate and relaunch WITHOUT the reset flag
+        app.terminate()
+        
+        let returningApp = XCUIApplication()
+        returningApp.launch()
+        
+        // Onboarding should be skipped - verify we don't see the first onboarding step
+        let onboardingHeading = returningApp.staticTexts["What skill do you want to master?"]
+        XCTAssertFalse(
+            onboardingHeading.waitForExistence(timeout: 2),
+            "Returning users should skip onboarding and go directly to home"
+        )
+        
+        // Should see home view elements instead
+        // Adjust this based on your actual HomeView content
+        XCTAssertTrue(
+            returningApp.navigationBars.firstMatch.exists,
+            "Should see main app navigation"
         )
     }
 

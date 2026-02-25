@@ -4,6 +4,11 @@ import SwiftUI
 struct SageApp: App {
 
     init() {
+        // Handle UI testing reset
+        if CommandLine.arguments.contains("--reset-for-testing") {
+            resetAppStateForTesting()
+        }
+        
         openDatabase()
         seedAPIKeyFromConfig()
         // Enable verbose streaming logs during debugging.
@@ -22,6 +27,21 @@ struct SageApp: App {
     }
 
     // MARK: - Private
+
+    private func resetAppStateForTesting() {
+        // Clear the database to ensure onboarding shows
+        do {
+            try DatabaseService.shared.open()
+            let skills = try DatabaseService.shared.fetchAll()
+            for skill in skills {
+                if let skillId = skill.id {
+                    try DatabaseService.shared.delete(id: skillId)
+                }
+            }
+        } catch {
+            print("[SageApp] Failed to reset database for testing: \(error)")
+        }
+    }
 
     private func openDatabase() {
         do {
