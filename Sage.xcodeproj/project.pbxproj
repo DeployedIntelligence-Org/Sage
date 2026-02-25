@@ -29,6 +29,7 @@
 
 /* Begin PBXFileReference section */
 		3115F3972F4E1E9D005A9A56 /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
+		31A0A26E2F4F709200C59780 /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
 		31BB9F882F4513510074C65F /* Sage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9F952F4513540074C65F /* SageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9F9F2F4513540074C65F /* SageUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -96,6 +97,13 @@
 
 /* Begin PBXGroup section */
 		3115F3992F4E1E9D005A9A56 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		31A0A2702F4F709200C59780 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -272,6 +280,10 @@
 				{
 					ProductGroup = 31BBAC222F4570C60074C65F /* Products */;
 					ProjectRef = 31BBAC202F4570C60074C65F /* Sage.xcodeproj */;
+				},
+				{
+					ProductGroup = 31A0A2702F4F709200C59780 /* Products */;
+					ProjectRef = 31A0A26E2F4F709200C59780 /* Sage.xcodeproj */;
 				},
 			);
 			projectRoot = "";
@@ -519,6 +531,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5Q469HTJ88;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = deployedintelligence.SageTests;
@@ -537,6 +550,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5Q469HTJ88;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = deployedintelligence.SageTests;
@@ -554,6 +568,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5Q469HTJ88;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = deployedintelligence.SageUITests;
@@ -571,6 +586,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5Q469HTJ88;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = deployedintelligence.SageUITests;

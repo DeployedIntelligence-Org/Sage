@@ -23,10 +23,7 @@ final class CalendarService {
     }
 
     var isAuthorized: Bool {
-        if #available(iOS 17.0, *) {
-            return authorizationStatus == .fullAccess
-        }
-        return authorizationStatus == .authorized
+        return authorizationStatus == .fullAccess
     }
 
     /// Requests full calendar read/write access. Returns `true` if the user grants it.
