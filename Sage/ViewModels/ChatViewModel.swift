@@ -212,10 +212,6 @@ final class ChatViewModel: ObservableObject {
             do {
                 for try await chunk in stream {
                     chunkCount += 1
-                    
-                    // Filter out empty sentinel chunks
-                    guard !chunk.isEmpty else { continue }
-                    
                     accumulatedText += chunk
                     chunksUntilUpdate -= 1
                     

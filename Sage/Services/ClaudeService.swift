@@ -77,20 +77,6 @@ final class ClaudeService {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    // MARK: - Logging
-
-    private var isStreamingLoggingEnabled = false
-
-    /// Enable or disable verbose streaming logs for debugging.
-    func setStreamingLoggingEnabled(_ enabled: Bool) {
-        isStreamingLoggingEnabled = enabled
-    }
-
-    private func log(_ message: String) {
-        guard isStreamingLoggingEnabled else { return }
-        print("[ClaudeService] \(message)")
-    }
-
     // MARK: - Init
 
     init(
