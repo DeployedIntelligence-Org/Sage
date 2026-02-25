@@ -229,12 +229,6 @@ final class ClaudeService {
                         }
                     }
                     
-                    // Yield an empty string as a sentinel to wake up the consumer
-                    continuation.yield("")
-                    
-                    // Give time for the sentinel to be consumed
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-                    
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
