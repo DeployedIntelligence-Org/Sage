@@ -8,7 +8,7 @@ struct SageApp: App {
         seedAPIKeyFromConfig()
         // Enable verbose streaming logs during debugging.
         #if DEBUG
-        ClaudeService.shared.setStreamingLoggingEnabled(true)
+        ClaudeService.shared.setStreamingLoggingEnabled(false)
         #endif
         // Register NotificationService as UNUserNotificationCenterDelegate before
         // the app finishes launching so cold-start notification taps are handled.
