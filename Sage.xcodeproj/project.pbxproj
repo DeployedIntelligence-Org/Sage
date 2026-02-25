@@ -28,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		3115F3972F4E1E9D005A9A56 /* Sage.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Sage.xcodeproj; sourceTree = "<group>"; };
 		31BB9F882F4513510074C65F /* Sage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9F952F4513540074C65F /* SageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BB9F9F2F4513540074C65F /* SageUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SageUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -94,6 +95,13 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3115F3992F4E1E9D005A9A56 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		31BB9F7F2F4513510074C65F = {
 			isa = PBXGroup;
 			children = (
@@ -249,6 +257,10 @@
 			productRefGroup = 31BB9F892F4513510074C65F /* Products */;
 			projectDirPath = "";
 			projectReferences = (
+				{
+					ProductGroup = 3115F3992F4E1E9D005A9A56 /* Products */;
+					ProjectRef = 3115F3972F4E1E9D005A9A56 /* Sage.xcodeproj */;
+				},
 				{
 					ProductGroup = 31BBA1B92F4515EE0074C65F /* Products */;
 					ProjectRef = 31BBA1B72F4515EE0074C65F /* Sage.xcodeproj */;
@@ -459,6 +471,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5Q469HTJ88;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -483,6 +496,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5Q469HTJ88;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sage/Info.plist;

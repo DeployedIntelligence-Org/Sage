@@ -26,12 +26,16 @@ final class ChatViewModelTests: XCTestCase {
     }
 
     /// Builds well-formed SSE lines for a sequence of text chunks (for streaming tests).
+    ///
+    /// Terminates with a `message_stop` event matching the Anthropic SSE format so that
+    /// `ClaudeService.streamConversation` breaks on the correct sentinel rather than
+    /// waiting for the stream to close naturally.
     private func sseLines(chunks: [String]) -> [String] {
         var lines = chunks.map { chunk -> String in
             let json = "{\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"\(chunk)\"}}"
             return "data: \(json)"
         }
-        lines.append("data: [DONE]")
+        lines.append("data: {\"type\":\"message_stop\"}")
         return lines
     }
 

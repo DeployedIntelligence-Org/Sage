@@ -31,6 +31,13 @@ final class ChatViewModel: ObservableObject {
     private let db: DatabaseService
     private let claude: ClaudeService
 
+    // MARK: - Logging
+
+    nonisolated private static func log(_ message: String) {
+        // Always-on for now; could be toggled via a flag if desired.
+        print("[ChatViewModel] \(message)")
+    }
+
     // MARK: - Init
 
     init(
@@ -41,12 +48,15 @@ final class ChatViewModel: ObservableObject {
         self.skillGoal = skillGoal
         self.db = db
         self.claude = claude
+        Self.log("init \(Unmanaged.passUnretained(self).toOpaque())")
+    }
+
+    deinit {
+        Self.log("deinit \(Unmanaged.passUnretained(self).toOpaque())")
     }
 
     // MARK: - Lifecycle
 
-    /// Call once when the view appears. Loads all conversations and opens the most recent one
-    /// (or creates one if none exist yet).
     func loadConversation() async {
         do {
             guard let goalId = skillGoal.id else { return }
@@ -68,14 +78,12 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Conversation management
 
-    /// Switches the active conversation and loads its messages.
     func selectConversation(_ conv: Conversation) async throws {
         conversation = conv
         guard let convId = conv.id else { return }
         messages = try db.fetchMessages(conversationId: convId)
     }
 
-    /// Creates a new blank conversation and makes it the active one.
     func newConversation() async {
         do {
             guard let goalId = skillGoal.id else { return }
@@ -87,16 +95,12 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Deletes a conversation (and its messages via cascade) and updates the list.
-    /// If the deleted conversation is currently active, switches to the next available one
-    /// (or creates a fresh conversation if none remain).
     func deleteConversation(_ conv: Conversation) async {
         do {
             guard let convId = conv.id else { return }
             try db.deleteConversation(id: convId)
             conversations.removeAll { $0.id == convId }
 
-            // If we just deleted the active conversation, switch to another one.
             if conversation?.id == convId {
                 if let next = conversations.first {
                     try await selectConversation(next)
@@ -111,10 +115,6 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Actions
 
-    /// Sends the current `inputText` to Claude using SSE streaming.
-    ///
-    /// The assistant reply appears token-by-token: a placeholder `Message` is inserted
-    /// immediately and its `content` is grown in place as chunks arrive.
     func sendMessage() async {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isLoading else { return }
@@ -124,7 +124,7 @@ final class ChatViewModel: ObservableObject {
         errorMessage = nil
         failedUserMessageId = nil
 
-        // 1. Persist & show the user message immediately for instant UI feedback.
+        // 1. Persist & show the user message immediately.
         var userMsg = Message(conversationId: convId, role: .user, content: text)
         do {
             userMsg = try db.insert(userMsg)
@@ -135,15 +135,17 @@ final class ChatViewModel: ObservableObject {
         messages.append(userMsg)
 
         isLoading = true
-        defer { isLoading = false }
 
-        // 2. Stream assistant reply (inserts placeholder, streams, persists, auto-titles).
+        Self.log("sendMessage BEFORE await streamAssistantReply (vm=\(Unmanaged.passUnretained(self).toOpaque()))")
         await streamAssistantReply(convId: convId, failedUserMsgId: userMsg.id)
+        Self.log("sendMessage AFTER await streamAssistantReply (vm=\(Unmanaged.passUnretained(self).toOpaque()))")
+
+        isLoading = false
+        Self.log("sendMessage finished. isLoading=false (vm=\(Unmanaged.passUnretained(self).toOpaque()))")
     }
 
     // MARK: - Message actions
 
-    /// Deletes a message from the database and removes it from the in-memory list.
     func deleteMessage(_ message: Message) async {
         guard let id = message.id else { return }
         do {
@@ -155,23 +157,21 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Retries sending after a failure. Clears the failed state and re-streams a response
-    /// for the existing user message (which was already persisted).
     func retryLastFailedMessage() async {
         guard !isLoading, let convId = conversation?.id else { return }
         failedUserMessageId = nil
         errorMessage = nil
 
         isLoading = true
-        defer { isLoading = false }
-
         await streamAssistantReply(convId: convId)
+        isLoading = false
+        Self.log("retry finished. isLoading=false")
     }
 
-    /// Inserts an empty assistant placeholder and streams a reply from Claude using the
-    /// current messages list. Shared by `sendMessage`, `regenerateResponse`, and `retryLastFailedMessage`.
-    /// Pass `failedUserMsgId` to mark the originating user message as failed on error.
+    // MARK: - Streaming
+
     private func streamAssistantReply(convId: Int64, failedUserMsgId: Int64? = nil) async {
+        Self.log("streamAssistantReply ENTER convId=\(convId) (vm=\(Unmanaged.passUnretained(self).toOpaque()))")
         var assistantMsg = Message(conversationId: convId, role: .assistant, content: "")
         do {
             assistantMsg = try db.insert(assistantMsg)
@@ -183,7 +183,6 @@ final class ChatViewModel: ObservableObject {
 
         do {
             // Load recent sessions so Claude has full context about recent practice.
-            // Failures are non-fatal — coaching still works without history.
             let recentSessions: [PracticeSession]
             if let goalId = skillGoal.id {
                 recentSessions = (try? db.fetchPracticeSessions(skillGoalId: goalId)) ?? []
@@ -199,27 +198,68 @@ final class ChatViewModel: ObservableObject {
                 recentSessions: recentSessions
             )
 
-            let historyForStream = messages.dropLast() // exclude the empty placeholder
+            let historyForStream = messages.dropLast() // exclude placeholder
             let stream = claude.streamConversation(
                 messages: Array(historyForStream),
                 systemPrompt: systemPrompt
             )
 
-            for try await chunk in stream {
-                if let lastIndex = messages.indices.last {
-                    messages[lastIndex].content += chunk
+            var chunkCount = 0
+            var accumulatedText = ""
+            let baseUpdateEvery = 3 // Base: update every 3 chunks
+            var chunksUntilUpdate = baseUpdateEvery
+            
+            do {
+                for try await chunk in stream {
+                    chunkCount += 1
+                    
+                    // Filter out empty sentinel chunks
+                    guard !chunk.isEmpty else { continue }
+                    
+                    accumulatedText += chunk
+                    chunksUntilUpdate -= 1
+                    
+                    // Check if we should update
+                    if chunksUntilUpdate <= 0 {
+                        // Check for incomplete markdown syntax
+                        let hasIncompleteMarkdown = accumulatedText.hasSuffix("*") || 
+                                                   accumulatedText.hasSuffix("**") ||
+                                                   accumulatedText.hasSuffix("`") ||
+                                                   accumulatedText.hasSuffix("_")
+                        
+                        if hasIncompleteMarkdown && chunksUntilUpdate > -7 {
+                            // Wait 1 more chunk (up to 7 extra chunks max)
+                            chunksUntilUpdate = -1
+                        } else {
+                            // Update now
+                            if let lastIndex = self.messages.indices.last {
+                                self.messages[lastIndex].content += accumulatedText
+                            }
+                            accumulatedText = ""
+                            chunksUntilUpdate = baseUpdateEvery
+                        }
+                    }
                 }
+                
+                // Flush any remaining accumulated text
+                if !accumulatedText.isEmpty, let lastIndex = self.messages.indices.last {
+                    self.messages[lastIndex].content += accumulatedText
+                }
+            } catch {
+                throw error
             }
+
+            Self.log("Streaming finished normally")
 
             if let lastIndex = messages.indices.last {
                 try db.updateMessageContent(messages[lastIndex])
             }
 
             if conversation?.title == nil, let firstUser = messages.first(where: { $0.role.isUser }) {
-                // Fire-and-forget: title generation must not hold isLoading true.
                 Task { await self.generateTitle(for: convId, firstUserMessage: firstUser.content) }
             }
         } catch {
+            Self.log("Streaming error: \(error.localizedDescription)")
             if messages.last?.role == .assistant {
                 let partial = messages.removeLast()
                 if let id = partial.id { try? db.deleteMessage(id: id) }
@@ -227,41 +267,50 @@ final class ChatViewModel: ObservableObject {
             failedUserMessageId = failedUserMsgId
             errorMessage = friendlyError(error)
         }
+        Self.log("streamAssistantReply EXIT convId=\(convId) (vm=\(Unmanaged.passUnretained(self).toOpaque()))")
     }
 
     // MARK: - Auto-title
 
-    /// Asks Claude to generate a short title for the conversation based on the first user message,
-    /// then persists it and refreshes the `conversations` list.
     private func generateTitle(for convId: Int64, firstUserMessage: String) async {
+        Self.log("generateTitle start for convId=\(convId)")
         let titlePrompt = PromptTemplates.conversationTitleUser(firstMessage: firstUserMessage)
 
         guard let response = try? await claude.send(
             userMessage: titlePrompt,
             systemPrompt: PromptTemplates.conversationTitleSystem,
             maxTokens: 30
-        ) else { return }
+        ) else {
+            Self.log("generateTitle: no response (send failed)")
+            return
+        }
 
         let raw = response.text
+        Self.log("generateTitle raw: \(raw.prefix(80))")
 
-        // Trim punctuation, quotes, and excess whitespace.
         let title = raw
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
             .prefix(80)
             .description
 
-        guard !title.isEmpty else { return }
+        guard !title.isEmpty else {
+            Self.log("generateTitle: empty after trimming")
+            return
+        }
 
-        guard var conv = conversation, conv.id == convId else { return }
+        guard var conv = conversation, conv.id == convId else {
+            Self.log("generateTitle: conversation changed or missing")
+            return
+        }
         conv.title = title
         try? db.updateConversationTitle(conv)
 
-        // Reflect updated title in both the active conversation and the list.
         conversation = conv
         if let idx = conversations.firstIndex(where: { $0.id == convId }) {
             conversations[idx] = conv
         }
+        Self.log("generateTitle done. Title set to: \(title)")
     }
 
     // MARK: - Helpers

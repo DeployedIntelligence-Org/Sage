@@ -17,6 +17,7 @@ struct HomeView: View {
 
     @State private var selectedTab: Int = Tab.practice.rawValue
     @State private var skillGoal: SkillGoal? = nil
+    @State private var showingSettings: Bool = false
 
     @ObservedObject private var notificationService = NotificationService.shared
 
@@ -29,18 +30,21 @@ struct HomeView: View {
                     description: "Track your practice sessions and log progress."
                 )
                 .navigationTitle("Practice")
+                .toolbar { settingsToolbar }
             }
             .tabItem { Label("Practice", systemImage: "figure.run") }
             .tag(Tab.practice.rawValue)
 
             NavigationStack {
                 CalendarView()
+                    .toolbar { settingsToolbar }
             }
             .tabItem { Label("Schedule", systemImage: "calendar") }
             .tag(Tab.schedule.rawValue)
 
             NavigationStack {
                 chatTab
+                    .toolbar { settingsToolbar }
             }
             .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right") }
             .tag(Tab.chat.rawValue)
@@ -52,9 +56,13 @@ struct HomeView: View {
                     description: "See patterns and weekly summaries of your progress."
                 )
                 .navigationTitle("Insights")
+                .toolbar { settingsToolbar }
             }
             .tabItem { Label("Insights", systemImage: "chart.line.uptrend.xyaxis") }
             .tag(Tab.insights.rawValue)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
         }
         .task { loadSkillGoal() }
         // After a quick-star rating from the notification, jump to Chat so Sage can follow up.
@@ -63,6 +71,19 @@ struct HomeView: View {
             withAnimation { selectedTab = Tab.chat.rawValue }
             // Consume the signal so repeated changes don't re-fire.
             notificationService.recentlyLoggedSessionId = nil
+        }
+    }
+
+    // MARK: - Toolbar
+
+    private var settingsToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .accessibilityLabel("Settings")
         }
     }
 
